@@ -1,11 +1,14 @@
-// Main entry point — mirrors all Python import paths:
-// from emergentintegrations import LlmChat, UserMessage, ImageContent
-// from emergentintegrations.llm.chat import LlmChat, UserMessage
-// from emergentintegrations.llm.openai import LlmChat, UserMessage
-
+/**
+ * emergentintegrations — lightweight async LLM chat client on top of the OpenAI SDK.
+ * Mirrors: src/emergentintegrations/__init__.py
+ */
 export {
+  ChatError,
+  FileContent,
+  FileContentWithMimeType,
+  ImageContent,
   LlmChat,
   UserMessage,
-  ImageContent,
-  FileContentWithMimeType,
 } from "./llm/chat.js";
+
+export const __version__ = "1.2.0";

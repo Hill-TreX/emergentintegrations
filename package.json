@@ -1,18 +1,22 @@
 {
   "name": "emergentintegrations",
-  "version": "1.1.0",
-  "description": "Lightweight async LLM chat client for Node.js built on the OpenAI SDK, with optional Emergent proxy routing.",
+  "version": "1.2.0",
+  "description": "Lightweight async LLM chat client built on the OpenAI SDK, with optional Emergent proxy routing.",
   "main": "src/index.js",
   "types": "src/index.d.ts",
   "type": "module",
   "exports": {
     ".": {
-      "import": "./src/index.js",
-      "require": "./src/index.cjs"
+      "import": "./src/index.js"
     },
     "./llm": {
-      "import": "./src/llm/index.js",
-      "require": "./src/llm/index.cjs"
+      "import": "./src/llm/index.js"
+    },
+    "./llm/chat": {
+      "import": "./src/llm/chat.js"
+    },
+    "./llm/openai": {
+      "import": "./src/llm/openai/index.js"
     }
   },
   "scripts": {

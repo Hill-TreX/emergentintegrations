@@ -1,6 +1,12 @@
+/**
+ * LLM integrations.
+ * Mirrors: src/emergentintegrations/llm/__init__.py
+ */
 export {
+  ChatError,
+  FileContent,
+  FileContentWithMimeType,
+  ImageContent,
   LlmChat,
   UserMessage,
-  ImageContent,
-  FileContentWithMimeType,
 } from "./chat.js";
