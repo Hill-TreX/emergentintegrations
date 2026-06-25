@@ -5,10 +5,16 @@ Node.js/TypeScript port of the Python [`emergentintegrations`](https://github.co
 ## Install
 
 ```bash
+npm install emergentintegrations
+```
+
+Or install directly from GitHub:
+
+```bash
 npm install github:Hill-TreX/emergentintegrations
 ```
 
-Dependencies are installed automatically. If you use Gemini image generation, also run:
+If you use Gemini image generation, also install:
 
 ```bash
 npm install @google/genai
