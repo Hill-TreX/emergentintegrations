@@ -1,202 +1,271 @@
-# emergentintegrations (Node.js/TypeScript)
+# emergentintegrations
 
-A Node.js/TypeScript library for various integrations including payments and LLM services. This is an exact port of the Python `emergentintegrations` v0.2.0 package.
+Node.js/TypeScript port of the Python [`emergentintegrations`](https://github.com/emergentbase/emergentintegrations) package (v0.2.0). Unified interface for LLM chat, image generation, video generation, text-to-speech, speech-to-text, and Stripe payments — with built-in Emergent proxy support.
 
-## Installation
+## Install
 
 ```bash
-npm install emergentintegrations
-# or from local zip:
-npm install ./emergentintegrations-0.2.0.tgz
+npm install github:Hill-TreX/emergentintegrations
 ```
 
-## Quick Start
+Dependencies are installed automatically. If you use Gemini image generation, also run:
 
-### LLM Chat (OpenAI, Anthropic, Gemini)
-
-```typescript
-import { LlmChat } from "emergentintegrations";
-
-const chat = new LlmChat(
-  "sk-emergent-your-key",
-  "session-123",
-  "You are a helpful assistant."
-);
-
-// Use with OpenAI
-chat.withModel("openai", "gpt-4o");
-const response = await chat.sendMessage({ text: "Hello!" });
-console.log(response);
-
-// Use with Anthropic (via proxy)
-chat.withModel("anthropic", "claude-sonnet-4-20250514");
-const response2 = await chat.sendMessage({ text: "Hello!" });
-
-// Use with Gemini
-chat.withModel("gemini", "gemini-2.5-flash");
-const response3 = await chat.sendMessage({ text: "Hello!" });
+```bash
+npm install @google/genai
 ```
 
-### Tool Calling
+## Quick start
 
-```typescript
-import { LlmChat } from "emergentintegrations";
+```js
+const { LlmChat, UserMessage } = require("emergentintegrations");
 
-const chat = new LlmChat("sk-emergent-...", "session-1", "You are helpful.");
-chat.withModel("openai", "gpt-4o");
-chat.withTools([
-  {
-    type: "function",
-    function: {
-      name: "get_weather",
-      description: "Get weather for a city",
-      parameters: {
-        type: "object",
-        properties: { city: { type: "string" } },
-        required: ["city"],
-      },
-    },
-  },
-]);
+const chat = new LlmChat("sk-emergent-...", "session-123", "You are a helpful assistant.")
+  .withModel("openai", "gpt-4o-mini")
+  .withParams({ temperature: 0.3 });
 
-const result = await chat.sendMessageWithTools({ text: "What's the weather in NYC?" });
-if (result.tool_calls) {
-  // Execute tool and report back
-  chat.addToolResult(result.tool_calls[0].id, JSON.stringify({ temp: "72F" }));
-  const final = await chat.sendMessageWithTools();
-  console.log(final.content);
+const reply = await chat.sendMessage(new UserMessage({ text: "Hello!" }));
+console.log(reply);
+```
+
+## How routing works
+
+- **`sk-emergent-*` key** → routes through `https://integrations.emergentagent.com/llm` (proxy handles Anthropic, Google, OpenAI)
+- **Any other key** → talks directly to the OpenAI API (or your custom `baseURL`)
+- `INTEGRATION_PROXY_URL` env var overrides the default proxy endpoint
+- `APP_URL` or `REACT_APP_BACKEND_URL` is forwarded as `X-App-ID` on every request
+
+---
+
+## LlmChat
+
+```js
+const { LlmChat, UserMessage, ImageContent, FileContentWithMimeType, ChatError } = require("emergentintegrations");
+```
+
+### Constructor
+
+```js
+new LlmChat(apiKey, sessionId, systemMessage, initialMessages?, customHeaders?)
+```
+
+| Param | Type | Description |
+|---|---|---|
+| `apiKey` | `string` | Provider key or `sk-emergent-*` for proxy routing |
+| `sessionId` | `string` | Session identifier |
+| `systemMessage` | `string` | System prompt |
+| `initialMessages` | `array?` | Seed conversation history (replaces system message) |
+| `customHeaders` | `object?` | Extra HTTP headers sent on every request |
+
+### Builder methods (chainable)
+
+```js
+chat.withModel("openai", "gpt-4o-mini")      // provider + model
+chat.withModel("anthropic", "claude-sonnet-4-6") // via sk-emergent-* proxy
+chat.withModel("gemini", "gemini-1.5-pro")    // via sk-emergent-* proxy
+chat.withParams({ temperature: 0.3, max_tokens: 512 })
+chat.withTools(tools, toolChoice?)            // attach function tools
+```
+
+### Sending messages
+
+```js
+// Simple text reply
+const text = await chat.sendMessage(new UserMessage({ text: "Hello" }));
+
+// With image
+const text = await chat.sendMessage(new UserMessage({
+  text: "What's in this image?",
+  file_contents: [new ImageContent(base64String)],
+}));
+
+// Multimodal response (text + generated images)
+const [text, images] = await chat.sendMessageMultimodalResponse(userMessage);
+// images: [{ mime_type: "image/png", data: "<base64>" }]
+
+// Tool-aware — returns ChatResponse with tool_calls
+const response = await chat.sendMessageWithTools(userMessage);
+// response.content, response.tool_calls, response.finish_reason, response.usage
+
+// Stream — yields typed events
+for await (const event of chat.streamMessage(userMessage)) {
+  if (event.type === "text_delta") process.stdout.write(event.content);
+  if (event.type === "tool_call_start") console.log("Tool called:", event.name);
+  if (event.type === "tool_call_ready") console.log("Args:", event.tool_call.arguments);
+  if (event.type === "stream_done") console.log("Done:", event.content);
 }
+
+// Get history
+const messages = await chat.getMessages();
+// chat.messages also works directly
 ```
 
-### Streaming
+### Tool use loop
 
-```typescript
-import { LlmChat } from "emergentintegrations";
+```js
+chat.withTools([{
+  type: "function",
+  function: { name: "get_weather", description: "...", parameters: { ... } }
+}]);
 
-const chat = new LlmChat("sk-emergent-...", "session-1", "You are helpful.");
-chat.withModel("openai", "gpt-4o");
+let response = await chat.sendMessageWithTools(new UserMessage({ text: "What's the weather?" }));
 
-for await (const event of chat.streamMessage({ text: "Tell me a story" })) {
-  if (event.type === "text_delta") {
-    process.stdout.write(event.content);
-  } else if (event.type === "stream_done") {
-    console.log("\n\nDone! Tokens used:", event.usage.total_tokens);
+while (response.tool_calls) {
+  for (const tc of response.tool_calls) {
+    const result = await myGetWeather(tc.arguments);
+    chat.addToolResult(tc.id, JSON.stringify(result));
   }
+  response = await chat.sendMessageWithTools();
 }
+console.log(response.content);
 ```
 
-### Image Generation (OpenAI)
+---
 
-```typescript
-import { OpenAIImageGeneration } from "emergentintegrations";
+## Message types
 
-const imageGen = new OpenAIImageGeneration("sk-emergent-...");
-const images = await imageGen.generateImages("A sunset over mountains", "gpt-image-1", 1, "medium");
-// images[0] is a Buffer of the image bytes
+```js
+new UserMessage({ text: "Hello" })
+new UserMessage({ text: "What's this?", file_contents: [new ImageContent(base64)] })
+new UserMessage()  // empty, for tool-result continuation turns
+
+new ImageContent(base64String)           // auto-detects PNG/JPEG/GIF/WEBP
+ImageContent.getMimeType(base64String)   // static helper
+
+new FileContentWithMimeType("application/pdf", "./doc.pdf")  // reads from disk
 ```
 
-### Image Generation (Gemini)
+---
 
-```typescript
-import { GeminiImageGeneration } from "emergentintegrations";
+## OpenAI extras
 
-const imageGen = new GeminiImageGeneration("your-gemini-key");
-const images = await imageGen.generateImages("A cat in space", "imagen-3.0-generate-002", 4);
-```
+```js
+const { OpenAITextToSpeech, OpenAISpeechToText, OpenAIImageGeneration,
+        OpenAIVideoGeneration, OpenAIChatRealtime } = require("emergentintegrations");
 
-### Video Generation (OpenAI Sora)
+// Text-to-Speech
+const tts = new OpenAITextToSpeech(apiKey);
+const audioBytes = await tts.generateSpeech("Hello world", "tts-1", "alloy");
+const base64Audio = await tts.generateSpeechBase64("Hello world");
 
-```typescript
-import { OpenAIVideoGeneration } from "emergentintegrations";
+// Speech-to-Text
+const stt = new OpenAISpeechToText(apiKey);
+const result = await stt.transcribe("./audio.mp3");
 
-const videoGen = new OpenAIVideoGeneration("sk-emergent-...");
-const videoBytes = await videoGen.textToVideo(
-  "A drone flying over a forest",
-  "sora-2",
-  "1280x720",
-  4
-);
-if (videoBytes) {
-  videoGen.saveVideo(videoBytes, "output.mp4");
-}
-```
+// Image Generation
+const imgGen = new OpenAIImageGeneration(apiKey);
+const imageBuffers = await imgGen.generateImages("A sunset", "gpt-image-1", 1, "low");
 
-### Video Generation (Gemini Veo)
+// Video Generation (Sora)
+const vidGen = new OpenAIVideoGeneration(apiKey);
+const videoBytes = await vidGen.textToVideo("A cat playing piano", "sora-2", "1280x720", 4);
 
-```typescript
-import { GeminiVideoGeneration } from "emergentintegrations";
-
-const videoGen = new GeminiVideoGeneration("sk-emergent-...");
-const videoBytes = await videoGen.textToVideo("Ocean waves crashing", 600);
-```
-
-### Text-to-Speech
-
-```typescript
-import { OpenAITextToSpeech } from "emergentintegrations";
-
-const tts = new OpenAITextToSpeech("sk-emergent-...");
-const audioBytes = await tts.generateSpeech("Hello world!", "tts-1", "alloy");
-// audioBytes is a Buffer of MP3 data
-```
-
-### Speech-to-Text
-
-```typescript
-import { OpenAISpeechToText } from "emergentintegrations";
-
-const stt = new OpenAISpeechToText("sk-emergent-...");
-const transcription = await stt.transcribe("./audio.mp3");
-console.log(transcription.text);
-```
-
-### Realtime WebRTC
-
-```typescript
-import { OpenAIChatRealtime } from "emergentintegrations";
-
-const realtime = new OpenAIChatRealtime("sk-your-openai-key");
-const session = await realtime.createEphemeralSessionForAudioChat("verse");
+// Realtime WebRTC
+const realtime = new OpenAIChatRealtime(apiKey);
+const session = await realtime.createEphemeralSessionForAudioChat();
 const sdpAnswer = await realtime.negotiateConnection(sdpOffer);
+// Express route handlers
+const handlers = OpenAIChatRealtime.createRouteHandlers(realtime);
+router.post("/realtime/session", handlers.createSession);
+router.post("/realtime/negotiate", handlers.negotiate);
 ```
 
-### Stripe Payments
+---
 
-```typescript
-import { StripeCheckout } from "emergentintegrations";
+## Gemini extras
 
-const checkout = new StripeCheckout("sk_test_emergent...", "whsec_...");
+```js
+const { GeminiImageGeneration, GeminiVideoGeneration } = require("emergentintegrations");
 
-const session = await checkout.createCheckoutSession({
+// Image generation (requires: npm install @google/genai)
+const imgGen = new GeminiImageGeneration(apiKey);
+const imageBuffers = await imgGen.generateImages("A mountain lake", "imagen-3.0-generate-002", 4);
+
+// Video generation (Veo via proxy)
+const vidGen = new GeminiVideoGeneration(apiKey);
+const videoBytes = await vidGen.textToVideo("A robot dancing");
+```
+
+---
+
+## Stripe payments
+
+```js
+const { StripeCheckout, CheckoutError } = require("emergentintegrations");
+
+const stripe = new StripeCheckout(apiKey, webhookSecret?, webhookUrl?);
+
+// Create checkout session
+const { url, session_id } = await stripe.createCheckoutSession({
   amount: 29.99,
   currency: "usd",
-  success_url: "https://example.com/success?session_id={CHECKOUT_SESSION_ID}",
-  cancel_url: "https://example.com/cancel",
+  success_url: "https://yoursite.com/success?session_id={CHECKOUT_SESSION_ID}",
+  cancel_url: "https://yoursite.com/cancel",
+  metadata: { userId: "123" },
 });
-console.log(session.url); // Redirect customer here
 
 // Check status
-const status = await checkout.getCheckoutStatus(session.session_id);
+const status = await stripe.getCheckoutStatus(session_id);
 
 // Handle webhook
-const event = await checkout.handleWebhook(rawBody, signature);
+const event = await stripe.handleWebhook(rawBody, stripeSignatureHeader);
 ```
 
-## Environment Variables
+Keys containing `sk_test_emergent` are automatically routed through the Emergent Stripe proxy.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `INTEGRATION_PROXY_URL` | Emergent proxy URL | `https://integrations.emergentagent.com` |
-| `APP_URL` | Application identifier for X-App-ID header | - |
-| `REACT_APP_BACKEND_URL` | Fallback app identifier | - |
+---
 
-## Proxy Routing
+## Migrating from Python
 
-When using an `sk-emergent-` API key:
-- All LLM requests route through `{INTEGRATION_PROXY_URL}/llm`
-- Stripe requests with `sk_test_emergent` route through `{INTEGRATION_PROXY_URL}/stripe`
-- Gemini video requests route through `{INTEGRATION_PROXY_URL}/llm/gemini/v1beta`
-- OpenAI video requests route through `{INTEGRATION_PROXY_URL}/llm/openai/v1`
+| Python | Node.js |
+|---|---|
+| `LlmChat(api_key=k, session_id=s, system_message=m)` | `new LlmChat(k, s, m)` |
+| `.with_model("openai", "gpt-4o")` | `.withModel("openai", "gpt-4o")` |
+| `.with_params(temperature=0.3)` | `.withParams({ temperature: 0.3 })` |
+| `.with_tools(tools)` | `.withTools(tools)` |
+| `.add_tool_result(id, content)` | `.addToolResult(id, content)` |
+| `await chat.send_message(UserMessage(text="hi"))` | `await chat.sendMessage(new UserMessage({ text: "hi" }))` |
+| `await chat.send_message_with_tools(msg)` | `await chat.sendMessageWithTools(msg)` |
+| `async for event in chat.stream_message(msg)` | `for await (const event of chat.streamMessage(msg))` |
+| `isinstance(event, TextDelta)` | `event.type === "text_delta"` |
+| `isinstance(event, StreamDone)` | `event.type === "stream_done"` |
+| `await chat.send_message_multimodal_response(msg)` | `await chat.sendMessageMultimodalResponse(msg)` |
+| `await chat.get_messages()` | `await chat.getMessages()` |
+| `chat.messages` | `chat.messages` |
+| `UserMessage(text="hi", file_contents=[...])` | `new UserMessage({ text: "hi", file_contents: [...] })` |
+| `ImageContent(base64)` | `new ImageContent(base64)` |
+| `ImageContent.get_mime_type(b64)` | `ImageContent.getMimeType(b64)` |
+| `FileContentWithMimeType(mime, path)` | `new FileContentWithMimeType(mime, path)` |
+
+## Import paths
+
+All of the following resolve to the same classes:
+
+```js
+// Root
+const { LlmChat, UserMessage } = require("emergentintegrations");
+
+// LLM submodule
+const { LlmChat, UserMessage } = require("emergentintegrations/llm");
+const { LlmChat, UserMessage } = require("emergentintegrations/llm/chat");
+
+// OpenAI compat path (mirrors Python's llm.openai import)
+const { LlmChat, UserMessage, OpenAITextToSpeech } = require("emergentintegrations/llm/openai");
+
+// Gemini
+const { GeminiImageGeneration } = require("emergentintegrations/llm/gemini");
+
+// Payments
+const { StripeCheckout } = require("emergentintegrations/payments/stripe");
+```
+
+## Development
+
+```bash
+git clone https://github.com/Hill-TreX/emergentintegrations
+cd emergentintegrations
+npm install       # also runs tsc via prepare script
+npm run build     # rebuild dist/
+```
 
 ## License
 

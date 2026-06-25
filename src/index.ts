@@ -17,6 +17,7 @@ export {
   ChatError,
   ImageContent,
   FileContentWithMimeType,
+  UserMessage,
 } from "./llm/chat";
 
 export type {
@@ -29,7 +30,6 @@ export type {
   ToolCallReady,
   StreamDone,
   FileContent,
-  UserMessage,
 } from "./llm/chat";
 
 // Utilities

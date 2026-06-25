@@ -1,12 +1,12 @@
 {
   "name": "emergentintegrations",
-  "version": "0.2.0",
+  "version": "2.1.0",
   "description": "A Node.js library for various integrations including payments and LLM services - exact port of the Python emergentintegrations package.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build",
+    "prepare": "npm run build",
     "test": "node dist/test.js"
   },
   "keywords": [
@@ -24,7 +24,7 @@
     "text-to-speech",
     "realtime"
   ],
-  "author": "Emergent Agent",
+  "author": "Hill TreX",
   "license": "MIT",
   "dependencies": {
     "openai": "^4.50.0",
@@ -42,5 +42,31 @@
     "dist",
     "src",
     "README.md"
-  ]
+  ],
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./llm": {
+      "require": "./dist/llm/index.js",
+      "types": "./dist/llm/index.d.ts"
+    },
+    "./llm/chat": {
+      "require": "./dist/llm/chat.js",
+      "types": "./dist/llm/chat.d.ts"
+    },
+    "./llm/openai": {
+      "require": "./dist/llm/openai/index.js",
+      "types": "./dist/llm/openai/index.d.ts"
+    },
+    "./llm/gemini": {
+      "require": "./dist/llm/gemini/index.js",
+      "types": "./dist/llm/gemini/index.d.ts"
+    },
+    "./payments/stripe": {
+      "require": "./dist/payments/stripe/index.js",
+      "types": "./dist/payments/stripe/index.d.ts"
+    }
+  }
 }

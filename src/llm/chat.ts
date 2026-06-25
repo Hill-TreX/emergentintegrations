@@ -115,9 +115,14 @@ export class FileContentWithMimeType implements FileContent {
   }
 }
 
-export interface UserMessage {
+export class UserMessage {
   text?: string;
-  file_contents?: FileContent[];
+  file_contents: FileContent[];
+
+  constructor({ text, file_contents }: { text?: string; file_contents?: FileContent[] } = {}) {
+    this.text = text;
+    this.file_contents = file_contents || [];
+  }
 }
 
 // ============================================================
@@ -431,9 +436,10 @@ export class LlmChat {
     const opts: any = { apiKey: this.apiKey };
     if (this._isEmergentKey(this.apiKey)) {
       opts.baseURL = `${getIntegrationProxyUrl()}/llm`;
-      if (Object.keys(this.customHeaders).length > 0) {
-        opts.defaultHeaders = this.customHeaders;
-      }
+    }
+    // Always forward custom headers (X-App-ID etc) regardless of key type
+    if (Object.keys(this.customHeaders).length > 0) {
+      opts.defaultHeaders = this.customHeaders;
     }
     return new OpenAI(opts);
   }
