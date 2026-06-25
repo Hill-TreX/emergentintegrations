@@ -1,38 +1,46 @@
 {
   "name": "emergentintegrations",
-  "version": "1.2.0",
-  "description": "Lightweight async LLM chat client built on the OpenAI SDK, with optional Emergent proxy routing.",
-  "main": "src/index.js",
-  "types": "src/index.d.ts",
-  "type": "module",
-  "exports": {
-    ".": {
-      "import": "./src/index.js"
-    },
-    "./llm": {
-      "import": "./src/llm/index.js"
-    },
-    "./llm/chat": {
-      "import": "./src/llm/chat.js"
-    },
-    "./llm/openai": {
-      "import": "./src/llm/openai/index.js"
-    }
-  },
+  "version": "0.2.0",
+  "description": "A Node.js library for various integrations including payments and LLM services - exact port of the Python emergentintegrations package.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "node scripts/build-cjs.js",
-    "test": "node tests/test.js"
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "node dist/test.js"
   },
   "keywords": [
     "llm",
     "openai",
+    "gemini",
     "anthropic",
-    "google",
-    "ai",
-    "emergent"
+    "stripe",
+    "payments",
+    "emergent",
+    "integrations",
+    "video-generation",
+    "image-generation",
+    "speech-to-text",
+    "text-to-speech",
+    "realtime"
   ],
+  "author": "Emergent Agent",
   "license": "MIT",
   "dependencies": {
-    "openai": "^4.100.0"
-  }
+    "openai": "^4.50.0",
+    "@google/genai": "^1.0.0",
+    "stripe": "^14.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ]
 }
