@@ -1,0 +1,29 @@
+{
+  "name": "emergentintegrations",
+  "version": "1.0.0",
+  "description": "Node.js replica of the Emergent integrations package. Unified LLM client for OpenAI, Anthropic, and Google with a single API key.",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "require": "./src/index.cjs"
+    },
+    "./llm": {
+      "import": "./src/llm/index.js",
+      "require": "./src/llm/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build-cjs.js",
+    "test": "node tests/test.js"
+  },
+  "keywords": ["llm", "openai", "anthropic", "google", "ai", "emergent"],
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "openai": "^4.100.0",
+    "@google/generative-ai": "^0.21.0"
+  }
+}
