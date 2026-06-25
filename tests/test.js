@@ -1,20 +1,18 @@
 /**
- * emergentintegrations - Test & Usage Examples
+ * emergentintegrations - Test suite
  * Run: node tests/test.js
  *
- * Set one or more of these env vars to run live tests:
- *   ANTHROPIC_API_KEY
- *   OPENAI_API_KEY
- *   GOOGLE_API_KEY
- *   EMERGENT_LLM_KEY  (routes to all providers via Emergent proxy)
+ * Live tests need one of:
+ *   OPENAI_API_KEY=sk-...
+ *   EMERGENT_LLM_KEY=sk-emergent-...
  */
 
-import { LlmChat, UserMessage, AssistantMessage } from "../src/index.js";
-
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
-const GOOGLE_KEY = process.env.GOOGLE_API_KEY;
-const EMERGENT_KEY = process.env.EMERGENT_LLM_KEY;
+import {
+  LlmChat,
+  UserMessage,
+  ImageContent,
+  FileContentWithMimeType,
+} from "../src/index.js";
 
 let passed = 0;
 let failed = 0;
@@ -29,194 +27,145 @@ function log(label, ok, info = "") {
   }
 }
 
-// ─── Unit Tests (no API key needed) ──────────────────────────────────────────
-
 console.log("\n📦 emergentintegrations test suite\n");
 console.log("── Unit Tests ──────────────────────────────");
 
-// Test 1: UserMessage construction
-const um = new UserMessage("hello");
-log("UserMessage role", um.role === "user", um.role);
-log("UserMessage content", um.content === "hello", um.content);
+// UserMessage string shorthand
+const um1 = new UserMessage("hello");
+log("UserMessage string shorthand — role", um1.role === "user");
+log("UserMessage string shorthand — text", um1.text === "hello");
+log("UserMessage string shorthand — fileContents empty", um1.fileContents.length === 0);
 
-// Test 2: AssistantMessage construction
-const am = new AssistantMessage("world");
-log("AssistantMessage role", am.role === "assistant", am.role);
+// UserMessage object
+const um2 = new UserMessage({ text: "hi", fileContents: [] });
+log("UserMessage object — text", um2.text === "hi");
 
-// Test 3: LlmChat provider detection (Anthropic)
+// UserMessage toOpenAIMessage plain text
+const msg = um1.toOpenAIMessage();
+log("toOpenAIMessage plain", msg.role === "user" && msg.content === "hello");
+
+// ImageContent mime detection
+const jpeg = new ImageContent("/9j/abc123");
+log("ImageContent JPEG detection", jpeg.mimeType === "image/jpeg");
+const png = new ImageContent("iVBORw0KGgoAAAANSUhEUg");
+log("ImageContent PNG detection", png.mimeType === "image/png");
+
+// UserMessage with image → array content
+const umImg = new UserMessage({
+  text: "What's this?",
+  fileContents: [new ImageContent("/9j/abc")],
+});
+const imgMsg = umImg.toOpenAIMessage();
+log("UserMessage with image — array content", Array.isArray(imgMsg.content));
+log("UserMessage with image — text part", imgMsg.content[0].type === "text");
+log("UserMessage with image — image part", imgMsg.content[1].type === "image_url");
+
+// LlmChat: missing apiKey throws
 try {
-  const chat = new LlmChat({ apiKey: "dummy", model: "claude-sonnet-4-6" });
-  log("Provider detection: claude -> anthropic", chat.provider === "anthropic", chat.provider);
+  new LlmChat({ sessionId: "x" });
+  log("Throws on missing apiKey", false);
 } catch (e) {
-  log("Provider detection: claude", false, e.message);
+  log("Throws on missing apiKey", e.message.includes("apiKey"));
 }
 
-// Test 4: LlmChat provider detection (OpenAI)
+// LlmChat: missing sessionId throws
 try {
-  const chat = new LlmChat({ apiKey: "dummy", model: "gpt-4o" });
-  log("Provider detection: gpt-4o -> openai", chat.provider === "openai", chat.provider);
+  new LlmChat({ apiKey: "sk-test" });
+  log("Throws on missing sessionId", false);
 } catch (e) {
-  log("Provider detection: gpt-4o", false, e.message);
+  log("Throws on missing sessionId", e.message.includes("sessionId"));
 }
 
-// Test 5: LlmChat provider detection (Google)
-try {
-  const chat = new LlmChat({ apiKey: "dummy", model: "gemini-1.5-pro" });
-  log("Provider detection: gemini -> google", chat.provider === "google", chat.provider);
-} catch (e) {
-  log("Provider detection: gemini", false, e.message);
-}
+// LlmChat: builder pattern is chainable
+const chat = new LlmChat({ apiKey: "sk-test", sessionId: "test-123" })
+  .withModel("openai", "gpt-4o-mini")
+  .withParams({ temperature: 0.3 });
+log("Builder .withModel() chainable", chat._model === "gpt-4o-mini");
+log("Builder .withParams() chainable", chat._extraParams.temperature === 0.3);
 
-// Test 6: Missing apiKey throws
-try {
-  new LlmChat({ model: "gpt-4o" });
-  log("Throws on missing apiKey", false, "no error thrown");
-} catch (e) {
-  log("Throws on missing apiKey", e.message.includes("apiKey"), e.message);
-}
+// sessionHistory starts empty
+log("sessionHistory starts empty", chat.sessionHistory.length === 0);
 
-// Test 7: Missing model throws
-try {
-  new LlmChat({ apiKey: "dummy" });
-  log("Throws on missing model", false, "no error thrown");
-} catch (e) {
-  log("Throws on missing model", e.message.includes("model"), e.message);
-}
+// clearHistory works
+chat._history.push({ role: "user", content: "test" });
+chat.clearHistory();
+log("clearHistory empties history", chat.sessionHistory.length === 0);
 
-// Test 8: clearHistory works
-try {
-  const chat = new LlmChat({ apiKey: "dummy", model: "gpt-4o" });
-  chat.history.push(new UserMessage("test"));
-  chat.clearHistory();
-  log("clearHistory empties history", chat.history.length === 0);
-} catch (e) {
-  log("clearHistory", false, e.message);
-}
+// sk-emergent-* key routes to proxy
+const emergentChat = new LlmChat({
+  apiKey: "sk-emergent-testkey",
+  sessionId: "sess-1",
+});
+log(
+  "sk-emergent-* routes to proxy baseURL",
+  emergentChat._client.baseURL.includes("integrations.emergentagent.com")
+);
 
-// Test 9: getHistory returns plain objects
-try {
-  const chat = new LlmChat({ apiKey: "dummy", model: "gpt-4o" });
-  chat.history.push(new UserMessage("hi"));
-  const h = chat.getHistory();
-  log(
-    "getHistory returns plain objects",
-    h[0].role === "user" && h[0].content === "hi"
-  );
-} catch (e) {
-  log("getHistory", false, e.message);
-}
+// plain key uses no baseURL override
+const plainChat = new LlmChat({
+  apiKey: "sk-openai-testkey",
+  sessionId: "sess-2",
+});
+log(
+  "Plain key uses OpenAI default",
+  !plainChat._client.baseURL.includes("integrations.emergentagent.com")
+);
 
-// ─── Live Tests ───────────────────────────────────────────────────────────────
+// ─── Live tests ───────────────────────────────────────────────────────────────
 
 console.log("\n── Live API Tests ──────────────────────────");
 
-async function testAnthropic() {
-  if (!ANTHROPIC_KEY && !EMERGENT_KEY) {
-    console.log("  ⏭️  Anthropic: skipped (no ANTHROPIC_API_KEY or EMERGENT_LLM_KEY)");
-    return;
-  }
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const EMERGENT_KEY = process.env.EMERGENT_LLM_KEY;
 
-  try {
-    const chat = new LlmChat({
-      apiKey: ANTHROPIC_KEY || EMERGENT_KEY,
-      model: "claude-haiku-4-5-20251001",
-      systemMessage: "You are a test assistant. Reply with exactly: PONG",
-      ...(EMERGENT_KEY && !ANTHROPIC_KEY
-        ? { baseUrl: "https://integrations.emergentagent.com" }
-        : {}),
-    });
-
-    const res = await chat.chat("PING");
-    log("Anthropic chat()", typeof res === "string" && res.length > 0, res.slice(0, 60));
-
-    // Test history persists
-    log("History updated after chat", chat.history.length === 2);
-
-    // Test streaming
-    let streamed = "";
-    const chat2 = new LlmChat({
-      apiKey: ANTHROPIC_KEY || EMERGENT_KEY,
-      model: "claude-haiku-4-5-20251001",
-      systemMessage: "Reply with exactly 3 words.",
-      ...(EMERGENT_KEY && !ANTHROPIC_KEY
-        ? { baseUrl: "https://integrations.emergentagent.com" }
-        : {}),
-    });
-
-    for await (const chunk of chat2.stream("Say hello world now")) {
-      streamed += chunk;
-    }
-    log("Anthropic stream()", streamed.length > 0, streamed.slice(0, 60));
-
-  } catch (e) {
-    log("Anthropic live test", false, e.message);
-  }
-}
-
-async function testOpenAI() {
+async function runLive() {
   if (!OPENAI_KEY && !EMERGENT_KEY) {
-    console.log("  ⏭️  OpenAI: skipped (no OPENAI_API_KEY or EMERGENT_LLM_KEY)");
-    return;
+    console.log("  ⏭️  Skipped — set OPENAI_API_KEY or EMERGENT_LLM_KEY to run live tests");
+  } else {
+    const key = OPENAI_KEY ?? EMERGENT_KEY;
+    const isEmergent = !OPENAI_KEY;
+
+    try {
+      const chat = new LlmChat({
+        apiKey: key,
+        sessionId: "live-test-001",
+        systemMessage: "Reply with exactly: PONG",
+        ...(isEmergent ? {} : {}),
+      })
+        .withModel("openai", "gpt-4o-mini")
+        .withParams({ temperature: 0 });
+
+      const res = await chat.sendMessage(new UserMessage("PING"));
+      log("sendMessage() returns string", typeof res === "string" && res.length > 0, res.slice(0, 50));
+      log("History updated after sendMessage", chat.sessionHistory.length === 2);
+
+      // Multi-turn
+      const chat2 = new LlmChat({
+        apiKey: key,
+        sessionId: "live-test-002",
+      }).withModel("openai", "gpt-4o-mini");
+
+      await chat2.sendMessage(new UserMessage("My name is Hilton."));
+      const res2 = await chat2.sendMessage(new UserMessage("What is my name?"));
+      log("Multi-turn history works", chat2.sessionHistory.length === 4);
+      log("Multi-turn answer contains name", res2.toLowerCase().includes("hilton"), res2.slice(0, 60));
+
+      // Streaming
+      const chat3 = new LlmChat({
+        apiKey: key,
+        sessionId: "live-test-003",
+      }).withModel("openai", "gpt-4o-mini");
+
+      let streamed = "";
+      for await (const chunk of chat3.stream(new UserMessage("Say hello in 3 words"))) {
+        streamed += chunk;
+      }
+      log("stream() yields chunks", streamed.length > 0, streamed.slice(0, 50));
+
+    } catch (e) {
+      log("Live API test", false, e.message);
+    }
   }
-
-  try {
-    const chat = new LlmChat({
-      apiKey: OPENAI_KEY || EMERGENT_KEY,
-      model: "gpt-4o-mini",
-      systemMessage: "You are a test assistant. Reply with exactly: PONG",
-      ...(EMERGENT_KEY && !OPENAI_KEY
-        ? { baseUrl: "https://integrations.emergentagent.com" }
-        : {}),
-    });
-
-    const res = await chat.chat("PING");
-    log("OpenAI chat()", typeof res === "string" && res.length > 0, res.slice(0, 60));
-
-    // Test multi-turn history
-    const res2 = await chat.chat("What did I just say?");
-    log("OpenAI multi-turn history", chat.history.length === 4, `history len: ${chat.history.length}`);
-
-    // Test send() alias
-    const chat3 = new LlmChat({
-      apiKey: OPENAI_KEY || EMERGENT_KEY,
-      model: "gpt-4o-mini",
-      ...(EMERGENT_KEY && !OPENAI_KEY
-        ? { baseUrl: "https://integrations.emergentagent.com" }
-        : {}),
-    });
-    const res3 = await chat3.send(new UserMessage("Say exactly: OK"));
-    log("OpenAI send() alias", typeof res3 === "string" && res3.length > 0, res3.slice(0, 40));
-
-  } catch (e) {
-    log("OpenAI live test", false, e.message);
-  }
-}
-
-async function testGoogle() {
-  if (!GOOGLE_KEY) {
-    console.log("  ⏭️  Google: skipped (no GOOGLE_API_KEY)");
-    return;
-  }
-
-  try {
-    const chat = new LlmChat({
-      apiKey: GOOGLE_KEY,
-      model: "gemini-1.5-flash",
-      systemMessage: "You are a test assistant. Reply with exactly: PONG",
-    });
-
-    const res = await chat.chat("PING");
-    log("Google chat()", typeof res === "string" && res.length > 0, res.slice(0, 60));
-
-  } catch (e) {
-    log("Google live test", false, e.message);
-  }
-}
-
-async function runLiveTests() {
-  await testAnthropic();
-  await testOpenAI();
-  await testGoogle();
 
   console.log(`\n── Results ─────────────────────────────────`);
   console.log(`   Passed: ${passed}`);
@@ -226,4 +175,4 @@ async function runLiveTests() {
   if (failed > 0) process.exit(1);
 }
 
-runLiveTests();
+runLive();

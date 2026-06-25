@@ -1,244 +1,218 @@
 # emergentintegrations
 
-<p align="center">
-  <b>Unified LLM client for Node.js — OpenAI, Anthropic, and Google through one consistent API</b>
-</p>
+A small async chat client for Node.js, built on top of the [OpenAI SDK](https://github.com/openai/openai-node). Works with any OpenAI-compatible endpoint, and routes through the Emergent integration proxy when given an `sk-emergent-*` key.
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/emergentintegrations"><img src="https://img.shields.io/npm/v/emergentintegrations.svg" alt="npm version"></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen" alt="Node.js >= 18">
-</p>
-
----
-
-Node.js replica of the Python `emergentintegrations` package used by [Emergent](https://emergentagent.com). Drop-in replacement for projects migrating from Python to Node.js, or for any Node/Express/Fastify backend that needs a clean, unified LLM interface.
-
-## Features
-
-- **One class, three providers** — `LlmChat` auto-detects whether to use Anthropic, OpenAI, or Google from the model name
-- **Single key support** — works with `EMERGENT_LLM_KEY` (routes to all providers) or direct provider keys
-- **Conversation history** — maintained automatically across `.chat()` calls
-- **Streaming** — first-class async generator streaming via `.stream()`
-- **Python API parity** — same class names, same method names (`.send()`, `UserMessage`, `AssistantMessage`)
-- **TypeScript** — full `.d.ts` types included
-- **Zero config** — no setup, no wrappers, just instantiate and call
-
-## Installation
+## Install
 
 ```bash
-# From npm (once published)
-npm install emergentintegrations
-
-# Or directly from this repo
 npm install github:Hill-TreX/emergentintegrations
 ```
 
-Install peer dependencies (providers you plan to use):
+Or install locally:
 
 ```bash
-npm install @anthropic-ai/sdk openai @google/generative-ai
+npm install ./emergentintegrations
 ```
 
-## Quick Start
+## Quick start
 
 ```js
-import { LlmChat, UserMessage } from "emergentintegrations";
+import { LlmChat, UserMessage, ImageContent } from "emergentintegrations";
 
 const chat = new LlmChat({
-  apiKey: process.env.EMERGENT_LLM_KEY,
-  model: "claude-sonnet-4-6",
-  systemMessage: "You are a helpful assistant.",
+  apiKey: "sk-...",           // OpenAI key, or sk-emergent-* for proxy routing
+  sessionId: "abc-123",
+  systemMessage: "You are a concise assistant.",
+})
+  .withModel("openai", "gpt-4o-mini")
+  .withParams({ temperature: 0.3 });
+
+const reply = await chat.sendMessage(new UserMessage({ text: "Give me a haiku about JavaScript." }));
+console.log(reply);
+
+// With an image attachment
+const withImage = new UserMessage({
+  text: "What is in this picture?",
+  fileContents: [new ImageContent("/9j/4AAQSkZJRg...")],   // JPEG base64
 });
-
-const response = await chat.chat("Hello!");
-console.log(response);
+const reply2 = await chat.sendMessage(withImage);
+console.log(reply2);
 ```
 
-## Usage
+## How routing works
 
-### Constructor
+- **Plain key** (`sk-...`, or any OpenAI-compatible provider key) — the SDK talks directly to the OpenAI API (or to whatever endpoint you pass via `baseUrl`).
+- **Emergent key** (`sk-emergent-*`) — the SDK sets `baseURL` to `${INTEGRATION_PROXY_URL:-https://integrations.emergentagent.com}/llm` and lets the Emergent proxy dispatch to the underlying model.
+- If `APP_URL` or `REACT_APP_BACKEND_URL` is set, an `X-App-ID` header is added automatically so the proxy can attribute the call.
+
+Environment variables, all optional:
+
+| Name | Purpose |
+| --- | --- |
+| `INTEGRATION_PROXY_URL` | Override the default Emergent proxy endpoint. |
+| `APP_URL` | App identifier forwarded as `X-App-ID`. |
+| `REACT_APP_BACKEND_URL` | Fallback when `APP_URL` is unset. |
+
+## API surface
+
+### `new LlmChat(options)`
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `apiKey` | `string` | ✅ | Provider key or `sk-emergent-*` for proxy routing |
+| `sessionId` | `string` | ✅ | Session identifier for conversation tracking |
+| `systemMessage` | `string` | — | System prompt |
+| `initialMessages` | `UserMessage[]` | — | Seed conversation history |
+| `customHeaders` | `object` | — | Extra HTTP headers |
+| `baseUrl` | `string` | — | Override base URL entirely |
+
+### `.withModel(provider, model)` → chainable
+
+Sets the target model string.
 
 ```js
-const chat = new LlmChat({
-  apiKey: "your-key",           // required — EMERGENT_LLM_KEY or provider key
-  model: "claude-sonnet-4-6",  // required — provider auto-detected from model name
-  systemMessage: "...",         // optional — system prompt
-  baseUrl: "https://...",       // optional — custom base URL / proxy endpoint
-  defaultParams: {},            // optional — { temperature, max_tokens, ... }
-  history: [],                  // optional — seed conversation history
-});
+chat.withModel("openai", "gpt-4o-mini")
+chat.withModel("anthropic", "claude-sonnet-4-6")   // via Emergent proxy
+chat.withModel("google", "gemini-1.5-pro")          // via Emergent proxy
 ```
 
-**Provider auto-detection from model name:**
+### `.withParams(params)` → chainable
 
-| Model prefix | Provider |
-|---|---|
-| `claude-*` | Anthropic |
-| `gpt-*`, `o1-*`, `o3-*`, `o4-*` | OpenAI |
-| `gemini-*` | Google |
-
-### `.chat(input, params?)`
-
-Send a message and get a full response string back. Conversation history is maintained automatically.
+Extra kwargs forwarded to `chat.completions.create`.
 
 ```js
-// Plain string
-const res = await chat.chat("What is 2 + 2?");
-
-// UserMessage object — mirrors Python API exactly
-const res = await chat.chat(new UserMessage("What is 2 + 2?"));
-
-// Array of messages
-const res = await chat.chat([
-  new UserMessage("My name is Hilton."),
-  new UserMessage("What is my name?"),
-]);
+chat.withParams({ temperature: 0.3, max_tokens: 512 })
 ```
 
-### `.send(input, params?)`
+### `.sendMessage(userMessage)` → `Promise<string>`
 
-Alias for `.chat()`. Mirrors the Python package's `.send()` method name exactly.
+Async. Sends a message and returns assistant text. Conversation history is maintained automatically.
 
 ```js
-// Python: await chat.send(UserMessage(content="Hello"))
-// Node:
-const res = await chat.send(new UserMessage("Hello"));
+const reply = await chat.sendMessage(new UserMessage({ text: "Hello!" }));
 ```
 
-### `.stream(input, params?)`
+### `.sendMessageMultimodalResponse(userMessage)` → `Promise<[string, images]>`
 
-Stream the response as it arrives. Returns an async generator yielding string chunks.
+Async. Returns `[text, images]` where `images` is a list of `{ mimeType, data }` when the upstream response carries generated images (e.g. via Gemini through the Emergent proxy).
 
 ```js
-for await (const chunk of chat.stream("Tell me a long story")) {
+const [text, images] = await chat.sendMessageMultimodalResponse(userMessage);
+```
+
+### `.stream(userMessage)` → `AsyncGenerator<string>`
+
+Streams the response as it arrives, yielding string chunks.
+
+```js
+for await (const chunk of chat.stream(new UserMessage({ text: "Tell me a story" }))) {
   process.stdout.write(chunk);
 }
 ```
 
-### `.clearHistory()`
+### `chat.sessionHistory`
 
-Reset conversation history.
-
-```js
-chat.clearHistory();
-```
-
-### `.getHistory()`
-
-Returns history as plain objects.
+Getter. Returns the full conversation history as an array of plain objects.
 
 ```js
-const history = chat.getHistory();
+console.log(chat.sessionHistory);
 // [{ role: "user", content: "..." }, { role: "assistant", content: "..." }]
 ```
 
+### `chat.clearHistory()`
+
+Resets session history.
+
+---
+
+### `new UserMessage({ text, fileContents? })`
+
+A user message, optionally with file or image attachments.
+
+```js
+// Text only
+new UserMessage({ text: "Hello" })
+new UserMessage("Hello")   // shorthand string
+
+// With image
+new UserMessage({
+  text: "What's in this image?",
+  fileContents: [new ImageContent(base64String)],
+})
+
+// With file
+new UserMessage({
+  text: "Summarize this document",
+  fileContents: [new FileContentWithMimeType("application/pdf", "./doc.pdf")],
+})
+```
+
+### `new ImageContent(imageBase64)`
+
+Built from a base64 string. Infers mime type from the base64 header (PNG/JPEG/GIF/WEBP).
+
+```js
+new ImageContent("/9j/4AAQSkZJRg...")   // JPEG
+new ImageContent("iVBORw0KGgo...")      // PNG
+```
+
+### `new FileContentWithMimeType(mimeType, filePath)`
+
+Reads a file from disk and packages it with an explicit mime type.
+
+```js
+new FileContentWithMimeType("image/png", "./screenshot.png")
+new FileContentWithMimeType("application/pdf", "./report.pdf")
+```
+
+All of the above are importable from either `emergentintegrations` or `emergentintegrations/llm`:
+
+```js
+import { LlmChat, UserMessage, ImageContent, FileContentWithMimeType } from "emergentintegrations";
+import { LlmChat, UserMessage } from "emergentintegrations/llm";
+```
+
+---
+
 ## Examples
 
-### Anthropic (Claude)
+### Express API route
 
 ```js
+import express from "express";
 import { LlmChat, UserMessage } from "emergentintegrations";
 
-const chat = new LlmChat({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  model: "claude-sonnet-4-6",
-  systemMessage: "You are a helpful assistant.",
+const app = express();
+app.use(express.json());
+
+app.post("/api/chat", async (req, res) => {
+  const { message, sessionId } = req.body;
+
+  const chat = new LlmChat({
+    apiKey: process.env.EMERGENT_LLM_KEY,
+    sessionId,
+    systemMessage: "You are a helpful assistant.",
+  }).withModel("openai", "gpt-4o-mini");
+
+  const reply = await chat.sendMessage(new UserMessage({ text: message }));
+  res.json({ reply });
 });
-
-const response = await chat.chat("Explain async/await in JavaScript.");
-console.log(response);
-```
-
-### OpenAI (GPT)
-
-```js
-const chat = new LlmChat({
-  apiKey: process.env.OPENAI_API_KEY,
-  model: "gpt-4o",
-  systemMessage: "You are a helpful assistant.",
-});
-
-const response = await chat.chat("What is the capital of France?");
-console.log(response);
-```
-
-### Google (Gemini)
-
-```js
-const chat = new LlmChat({
-  apiKey: process.env.GOOGLE_API_KEY,
-  model: "gemini-1.5-pro",
-  systemMessage: "You are a helpful assistant.",
-});
-
-const response = await chat.chat("Summarize the theory of relativity.");
-console.log(response);
-```
-
-### With Emergent Universal Key (all providers, one key)
-
-```js
-// Anthropic via Emergent proxy
-const claudeChat = new LlmChat({
-  apiKey: process.env.EMERGENT_LLM_KEY,
-  model: "claude-sonnet-4-6",
-  baseUrl: "https://integrations.emergentagent.com",
-  systemMessage: "You are a helpful assistant.",
-});
-
-// OpenAI via Emergent proxy
-const gptChat = new LlmChat({
-  apiKey: process.env.EMERGENT_LLM_KEY,
-  model: "gpt-4o",
-  baseUrl: "https://integrations.emergentagent.com",
-});
-
-// Google via Emergent proxy
-const geminiChat = new LlmChat({
-  apiKey: process.env.EMERGENT_LLM_KEY,
-  model: "gemini-1.5-pro",
-  baseUrl: "https://integrations.emergentagent.com",
-});
-```
-
-### Multi-turn conversation
-
-```js
-const chat = new LlmChat({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  model: "claude-sonnet-4-6",
-});
-
-await chat.chat("My name is Hilton.");
-await chat.chat("I run two SaaS products.");
-const summary = await chat.chat("What do you know about me?");
-// → "Your name is Hilton and you run two SaaS products."
 ```
 
 ### Streaming in Express
 
 ```js
-import express from "express";
-import { LlmChat } from "emergentintegrations";
-
-const app = express();
-app.use(express.json());
-
 app.post("/api/chat/stream", async (req, res) => {
-  const { message } = req.body;
-
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
 
   const chat = new LlmChat({
     apiKey: process.env.EMERGENT_LLM_KEY,
-    model: "claude-sonnet-4-6",
-    baseUrl: "https://integrations.emergentagent.com",
+    sessionId: req.body.sessionId,
     systemMessage: "You are a helpful assistant.",
-  });
+  }).withModel("openai", "gpt-4o-mini");
 
-  for await (const chunk of chat.stream(message)) {
+  for await (const chunk of chat.stream(new UserMessage({ text: req.body.message }))) {
     res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
   }
 
@@ -246,69 +220,91 @@ app.post("/api/chat/stream", async (req, res) => {
 });
 ```
 
-### Custom parameters per call
+### Vision / image analysis
+
+```js
+import { LlmChat, UserMessage, ImageContent } from "emergentintegrations";
+import fs from "fs";
+
+const imageBase64 = fs.readFileSync("./photo.jpg").toString("base64");
+
+const chat = new LlmChat({
+  apiKey: process.env.OPENAI_API_KEY,
+  sessionId: "vision-session",
+}).withModel("openai", "gpt-4o");
+
+const reply = await chat.sendMessage(
+  new UserMessage({
+    text: "Describe what you see in this image.",
+    fileContents: [new ImageContent(imageBase64)],
+  })
+);
+
+console.log(reply);
+```
+
+### Multi-turn conversation
 
 ```js
 const chat = new LlmChat({
   apiKey: process.env.OPENAI_API_KEY,
-  model: "gpt-4o",
-  defaultParams: { temperature: 0.3 },
-});
+  sessionId: "convo-001",
+}).withModel("openai", "gpt-4o-mini");
 
-// Override temperature for this call only
-const creative = await chat.chat("Write a poem", { temperature: 0.95 });
+await chat.sendMessage(new UserMessage({ text: "My name is Hilton." }));
+await chat.sendMessage(new UserMessage({ text: "I run two SaaS products." }));
+const summary = await chat.sendMessage(new UserMessage({ text: "What do you know about me?" }));
+// → "Your name is Hilton and you run two SaaS products."
 ```
+
+### Using Claude or Gemini via Emergent proxy
+
+```js
+// Claude via Emergent proxy
+const claudeChat = new LlmChat({
+  apiKey: process.env.EMERGENT_LLM_KEY,   // must be sk-emergent-* key
+  sessionId: "claude-session",
+  systemMessage: "You are a helpful assistant.",
+}).withModel("anthropic", "claude-sonnet-4-6");
+
+// Gemini via Emergent proxy
+const geminiChat = new LlmChat({
+  apiKey: process.env.EMERGENT_LLM_KEY,
+  sessionId: "gemini-session",
+}).withModel("google", "gemini-1.5-pro");
+```
+
+---
 
 ## Migrating from Python
 
-This package is a direct replica of the Python `emergentintegrations` package. Migration is line-for-line:
+This package mirrors the Python `emergentintegrations` API exactly.
 
 | Python | Node.js |
 |---|---|
-| `from emergentintegrations.llm.chat import LlmChat, UserMessage` | `import { LlmChat, UserMessage } from "emergentintegrations"` |
-| `LlmChat(api_key=k, model=m, system_message=s)` | `new LlmChat({ apiKey: k, model: m, systemMessage: s })` |
-| `await chat.send(UserMessage(content="hi"))` | `await chat.send(new UserMessage("hi"))` |
-| `await chat.send(UserMessage(content="hi"))` | `await chat.chat("hi")` |
-| `chat.session_history` | `chat.getHistory()` |
+| `from emergentintegrations import LlmChat, UserMessage, ImageContent` | `import { LlmChat, UserMessage, ImageContent } from "emergentintegrations"` |
+| `LlmChat(api_key=k, session_id=s, system_message=m)` | `new LlmChat({ apiKey: k, sessionId: s, systemMessage: m })` |
+| `.with_model("openai", "gpt-4o-mini")` | `.withModel("openai", "gpt-4o-mini")` |
+| `.with_params(temperature=0.3)` | `.withParams({ temperature: 0.3 })` |
+| `await chat.send_message(UserMessage(text="hi"))` | `await chat.sendMessage(new UserMessage({ text: "hi" }))` |
+| `await chat.send_message_multimodal_response(msg)` | `await chat.sendMessageMultimodalResponse(msg)` |
+| `ImageContent(base64_string)` | `new ImageContent(base64String)` |
+| `FileContentWithMimeType(mime, path)` | `new FileContentWithMimeType(mime, path)` |
+| `chat.session_history` | `chat.sessionHistory` |
 
-## Environment Variables
+---
 
-```bash
-# Emergent Universal Key — routes to all providers
-EMERGENT_LLM_KEY=your_emergent_key
-
-# Or use direct provider keys
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GOOGLE_API_KEY=AIza...
-```
-
-## Running Tests
+## Development
 
 ```bash
-# Unit tests only — no API key needed
+git clone https://github.com/Hill-TreX/emergentintegrations
+cd emergentintegrations
+npm install
 node tests/test.js
 
 # With live API tests
-ANTHROPIC_API_KEY=sk-ant-... node tests/test.js
 OPENAI_API_KEY=sk-... node tests/test.js
-EMERGENT_LLM_KEY=your-key node tests/test.js
-```
-
-## Project Structure
-
-```
-emergentintegrations/
-├── src/
-│   ├── index.js          # Main entry point
-│   ├── index.d.ts        # TypeScript definitions
-│   └── llm/
-│       ├── chat.js       # LlmChat, UserMessage, AssistantMessage
-│       └── index.js      # LLM submodule exports
-├── tests/
-│   └── test.js           # Unit + live API tests
-├── package.json
-└── README.md
+EMERGENT_LLM_KEY=sk-emergent-... node tests/test.js
 ```
 
 ## License

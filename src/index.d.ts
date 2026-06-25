@@ -1,84 +1,75 @@
 /**
  * emergentintegrations - TypeScript definitions
+ * Node.js replica of the Python emergentintegrations package
  */
 
-export interface LlmChatOptions {
-  /** Your API key (EMERGENT_LLM_KEY or provider key) */
-  apiKey: string;
-  /** Model name e.g. "claude-sonnet-4-6", "gpt-4o", "gemini-1.5-pro" */
-  model: string;
-  /** Optional system prompt */
-  systemMessage?: string;
-  /** Optional custom base URL override (e.g. Emergent proxy) */
-  baseUrl?: string;
-  /** Default params applied to every request: temperature, max_tokens, etc. */
-  defaultParams?: Record<string, unknown>;
-  /** Optional seed history */
-  history?: Array<UserMessage | AssistantMessage>;
+export declare class ImageContent {
+  imageBase64: string;
+  mimeType: string;
+  readonly rawBase64: string;
+  /** Infers mime type from base64 header (PNG/JPEG/GIF/WEBP) */
+  constructor(imageBase64: string);
 }
 
-export interface MessageLike {
-  role: "user" | "assistant" | "system";
-  content: string;
+export declare class FileContentWithMimeType {
+  mimeType: string;
+  filePath: string;
+  base64: string;
+  constructor(mimeType: string, filePath: string);
 }
 
-export declare class UserMessage implements MessageLike {
+export interface UserMessageOptions {
+  text?: string;
+  fileContents?: Array<ImageContent | FileContentWithMimeType>;
+}
+
+export declare class UserMessage {
   role: "user";
-  content: string;
-  constructor(content: string);
+  text: string | null;
+  fileContents: Array<ImageContent | FileContentWithMimeType>;
+  constructor(options: string | UserMessageOptions);
+  toOpenAIMessage(): object;
 }
 
-export declare class AssistantMessage implements MessageLike {
-  role: "assistant";
-  content: string;
-  constructor(content: string);
-}
-
-export declare class SystemMessage implements MessageLike {
-  role: "system";
-  content: string;
-  constructor(content: string);
+export interface LlmChatOptions {
+  /** Provider key, or sk-emergent-* to route via Emergent proxy */
+  apiKey: string;
+  /** Session identifier */
+  sessionId: string;
+  /** System prompt */
+  systemMessage?: string;
+  /** Seed conversation history */
+  initialMessages?: UserMessage[];
+  /** Extra HTTP headers */
+  customHeaders?: Record<string, string>;
+  /** Override base URL entirely */
+  baseUrl?: string;
 }
 
 export declare class LlmChat {
-  readonly model: string;
-  readonly provider: "anthropic" | "openai" | "google";
-  readonly history: Array<UserMessage | AssistantMessage>;
+  readonly sessionId: string;
+  readonly systemMessage: string | null;
+  readonly sessionHistory: object[];
 
   constructor(options: LlmChatOptions);
 
-  /**
-   * Send a message and receive the full response string.
-   * Conversation history is maintained automatically.
-   */
-  chat(
-    input: string | UserMessage | Array<UserMessage | AssistantMessage>,
-    params?: Record<string, unknown>
-  ): Promise<string>;
+  /** Set target model. Chainable. */
+  withModel(provider: string, model: string): this;
 
-  /**
-   * Alias for chat(). Mirrors the Python package's .send() method.
-   */
-  send(
-    input: string | UserMessage | Array<UserMessage | AssistantMessage>,
-    params?: Record<string, unknown>
-  ): Promise<string>;
+  /** Set extra params forwarded to chat.completions.create. Chainable. */
+  withParams(params: Record<string, unknown>): this;
 
-  /**
-   * Stream a response. Yields string chunks as they arrive.
-   */
-  stream(
-    input: string | UserMessage | Array<UserMessage | AssistantMessage>,
-    params?: Record<string, unknown>
-  ): AsyncGenerator<string>;
+  /** Send a message, get assistant text back. History maintained automatically. */
+  sendMessage(userMessage: UserMessage): Promise<string>;
 
-  /**
-   * Clear conversation history.
-   */
+  /** Send a message, get text + any generated images back. */
+  sendMessageMultimodalResponse(
+    userMessage: UserMessage
+  ): Promise<[string, Array<{ mimeType: string; data: string }>]>;
+
+  /** Stream a response as an async generator of string chunks. */
+  stream(userMessage: UserMessage): AsyncGenerator<string>;
+
+  /** Clear session history. */
   clearHistory(): void;
-
-  /**
-   * Get current conversation history as plain objects.
-   */
-  getHistory(): Array<{ role: string; content: string }>;
 }

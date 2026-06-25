@@ -1,412 +1,350 @@
 /**
- * emergentintegrations - Node.js replica of the Python emergentintegrations package
- * LlmChat: Unified LLM client supporting OpenAI, Anthropic, and Google via a single key
+ * emergentintegrations - Node.js
+ * Mirrors the Python emergentintegrations package API exactly.
+ *
+ * Architecture: Everything routes through the OpenAI SDK.
+ * - sk-emergent-* keys → Emergent proxy (handles Anthropic, Google, OpenAI)
+ * - Any other key      → Direct OpenAI-compatible endpoint
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import fs from "fs";
+import path from "path";
 
-// ─── Message Types ────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
+const DEFAULT_PROXY_URL = "https://integrations.emergentagent.com/llm";
+
+// ─── Content types ────────────────────────────────────────────────────────────
+
+/**
+ * Image content built from a base64 string.
+ * Infers mime type from the base64 header (PNG/JPEG/GIF/WEBP).
+ */
+export class ImageContent {
+  /**
+   * @param {string} imageBase64 - Raw base64 string (with or without data URI prefix)
+   */
+  constructor(imageBase64) {
+    this.imageBase64 = imageBase64;
+    this.mimeType = ImageContent._inferMimeType(imageBase64);
+  }
+
+  static _inferMimeType(b64) {
+    if (b64.startsWith("/9j/")) return "image/jpeg";
+    if (b64.startsWith("iVBORw0KGgo")) return "image/png";
+    if (b64.startsWith("R0lGOD")) return "image/gif";
+    if (b64.startsWith("UklGR")) return "image/webp";
+    // data URI prefix
+    const match = b64.match(/^data:(image\/[a-z]+);base64,/);
+    if (match) return match[1];
+    return "image/jpeg"; // fallback
+  }
+
+  /** Strip data URI prefix if present and return raw base64 */
+  get rawBase64() {
+    return this.imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+  }
+}
+
+/**
+ * File content with an explicit mime type, read from disk.
+ */
+export class FileContentWithMimeType {
+  /**
+   * @param {string} mimeType - e.g. "image/png", "application/pdf"
+   * @param {string} filePath - Absolute or relative path to file
+   */
+  constructor(mimeType, filePath) {
+    this.mimeType = mimeType;
+    this.filePath = filePath;
+    const data = fs.readFileSync(path.resolve(filePath));
+    this.base64 = data.toString("base64");
+  }
+}
+
+/**
+ * A user message, optionally with file/image attachments.
+ *
+ * @example
+ * new UserMessage({ text: "What's in this image?", fileContents: [new ImageContent(base64)] })
+ * new UserMessage({ text: "Hello" })
+ * new UserMessage("Hello")   // shorthand string
+ */
 export class UserMessage {
-  constructor(content) {
+  /**
+   * @param {string|object} options
+   * @param {string} [options.text]
+   * @param {Array<ImageContent|FileContentWithMimeType>} [options.fileContents]
+   */
+  constructor(options) {
+    if (typeof options === "string") {
+      this.text = options;
+      this.fileContents = [];
+    } else {
+      this.text = options.text ?? null;
+      this.fileContents = options.fileContents ?? [];
+    }
     this.role = "user";
-    this.content = content;
-  }
-}
-
-export class AssistantMessage {
-  constructor(content) {
-    this.role = "assistant";
-    this.content = content;
-  }
-}
-
-export class SystemMessage {
-  constructor(content) {
-    this.role = "system";
-    this.content = content;
-  }
-}
-
-// ─── Provider Detection ───────────────────────────────────────────────────────
-
-const ANTHROPIC_MODELS = [
-  "claude",
-];
-
-const OPENAI_MODELS = [
-  "gpt",
-  "o1",
-  "o3",
-  "o4",
-  "chatgpt",
-  "text-embedding",
-  "dall-e",
-];
-
-const GOOGLE_MODELS = [
-  "gemini",
-  "palm",
-  "bison",
-];
-
-function detectProvider(model) {
-  const m = model.toLowerCase();
-
-  if (ANTHROPIC_MODELS.some((prefix) => m.startsWith(prefix))) {
-    return "anthropic";
-  }
-  if (OPENAI_MODELS.some((prefix) => m.startsWith(prefix))) {
-    return "openai";
-  }
-  if (GOOGLE_MODELS.some((prefix) => m.startsWith(prefix))) {
-    return "google";
   }
 
-  // fallback: if using emergent proxy base URL, treat as openai-compatible
-  return "openai";
+  /** Convert to OpenAI message format */
+  toOpenAIMessage() {
+    if (!this.fileContents || this.fileContents.length === 0) {
+      return { role: "user", content: this.text ?? "" };
+    }
+
+    const content = [];
+
+    if (this.text) {
+      content.push({ type: "text", text: this.text });
+    }
+
+    for (const fc of this.fileContents) {
+      const b64 = fc instanceof ImageContent ? fc.rawBase64 : fc.base64;
+      const mime = fc.mimeType;
+      content.push({
+        type: "image_url",
+        image_url: { url: `data:${mime};base64,${b64}` },
+      });
+    }
+
+    return { role: "user", content };
+  }
 }
 
 // ─── LlmChat ─────────────────────────────────────────────────────────────────
 
 /**
- * Unified LLM chat client. Mirrors the Python emergentintegrations LlmChat class.
+ * Unified async LLM chat client.
+ * Mirrors the Python emergentintegrations LlmChat class exactly.
  *
  * @example
- * import { LlmChat, UserMessage } from "emergentintegrations/llm";
+ * import { LlmChat, UserMessage, ImageContent } from "emergentintegrations";
  *
  * const chat = new LlmChat({
- *   apiKey: process.env.EMERGENT_LLM_KEY,
- *   model: "claude-sonnet-4-6",
- *   systemMessage: "You are a helpful assistant",
- * });
+ *   apiKey: "sk-emergent-...",
+ *   sessionId: "abc-123",
+ *   systemMessage: "You are a concise assistant.",
+ * })
+ *   .withModel("openai", "gpt-4o-mini")
+ *   .withParams({ temperature: 0.3 });
  *
- * const response = await chat.chat("Hello!");
- * console.log(response); // string
+ * const reply = await chat.sendMessage(new UserMessage({ text: "Hello!" }));
  */
 export class LlmChat {
   /**
    * @param {object} options
-   * @param {string} options.apiKey           - Your API key (EMERGENT_LLM_KEY or provider key)
-   * @param {string} options.model            - Model name e.g. "claude-sonnet-4-6", "gpt-4o", "gemini-1.5-pro"
-   * @param {string} [options.systemMessage]  - Optional system prompt
-   * @param {string} [options.baseUrl]        - Optional custom base URL (e.g. Emergent proxy)
-   * @param {object} [options.defaultParams]  - Optional default params: { temperature, max_tokens, ... }
-   * @param {Array}  [options.history]        - Optional initial conversation history
+   * @param {string}   options.apiKey          - Provider key or sk-emergent-* for proxy
+   * @param {string}   options.sessionId       - Session identifier for conversation tracking
+   * @param {string}   [options.systemMessage] - System prompt
+   * @param {Array}    [options.initialMessages] - Seed conversation history
+   * @param {object}   [options.customHeaders] - Extra HTTP headers
+   * @param {string}   [options.baseUrl]       - Override base URL entirely
    */
   constructor({
     apiKey,
-    model,
+    sessionId,
     systemMessage = null,
+    initialMessages = null,
+    customHeaders = null,
     baseUrl = null,
-    defaultParams = {},
-    history = [],
   }) {
     if (!apiKey) throw new Error("[LlmChat] apiKey is required");
-    if (!model) throw new Error("[LlmChat] model is required");
+    if (!sessionId) throw new Error("[LlmChat] sessionId is required");
 
     this.apiKey = apiKey;
-    this.model = model;
+    this.sessionId = sessionId;
     this.systemMessage = systemMessage;
-    this.baseUrl = baseUrl;
-    this.defaultParams = defaultParams;
-    this.history = [...history];
-    this.provider = detectProvider(model);
+    this.customHeaders = customHeaders ?? {};
+    this._model = "gpt-4o-mini";
+    this._extraParams = {};
+    this._history = [];
 
-    this._initClient();
-  }
-
-  _initClient() {
-    const opts = { apiKey: this.apiKey };
-
-    if (this.baseUrl) {
-      // Emergent proxy or any custom endpoint
-      opts.baseURL = this.baseUrl;
+    // Seed history
+    if (initialMessages) {
+      for (const m of initialMessages) {
+        this._history.push(m);
+      }
     }
 
-    switch (this.provider) {
-      case "anthropic":
-        this._client = new Anthropic(opts);
-        break;
+    // Routing: sk-emergent-* keys go to the Emergent proxy
+    const isEmergentKey = apiKey.startsWith("sk-emergent-");
 
-      case "openai":
-        this._client = new OpenAI(opts);
-        break;
+    let resolvedBaseUrl = baseUrl;
 
-      case "google":
-        // Google SDK doesn't use baseURL in the same way
-        this._client = new GoogleGenerativeAI(this.apiKey);
-        break;
-
-      default:
-        throw new Error(`[LlmChat] Unknown provider for model: ${this.model}`);
+    if (!resolvedBaseUrl) {
+      if (isEmergentKey) {
+        const proxyBase =
+          process.env.INTEGRATION_PROXY_URL ?? DEFAULT_PROXY_URL;
+        resolvedBaseUrl = proxyBase;
+      }
+      // Otherwise: no baseUrl = standard OpenAI API
     }
+
+    // Build headers
+    const headers = { ...this.customHeaders };
+
+    // X-App-ID for proxy attribution
+    const appUrl =
+      process.env.APP_URL ?? process.env.REACT_APP_BACKEND_URL ?? null;
+    if (appUrl) {
+      headers["X-App-ID"] = appUrl;
+    }
+
+    this._client = new OpenAI({
+      apiKey,
+      ...(resolvedBaseUrl ? { baseURL: resolvedBaseUrl } : {}),
+      defaultHeaders: Object.keys(headers).length > 0 ? headers : undefined,
+    });
   }
 
-  // ─── Public API ─────────────────────────────────────────────────────────────
+  // ─── Builder methods ────────────────────────────────────────────────────────
 
   /**
-   * Send a message and get a response string back.
-   * Maintains conversation history automatically.
+   * Set the target model. Chainable.
+   * @param {string} provider - "openai" | "anthropic" | "google" | etc.
+   * @param {string} model    - Model name e.g. "gpt-4o-mini", "claude-sonnet-4-6"
+   * @returns {LlmChat}
+   */
+  withModel(provider, model) {
+    this._provider = provider;
+    this._model = model;
+    return this;
+  }
+
+  /**
+   * Set extra parameters forwarded to chat.completions.create. Chainable.
+   * @param {object} params - e.g. { temperature: 0.3, max_tokens: 1000 }
+   * @returns {LlmChat}
+   */
+  withParams(params) {
+    this._extraParams = { ...this._extraParams, ...params };
+    return this;
+  }
+
+  // ─── Core send methods ───────────────────────────────────────────────────────
+
+  /**
+   * Send a message and get assistant text back.
+   * Conversation history is maintained automatically.
    *
-   * @param {string|UserMessage|Array} input - Message string, UserMessage, or array of messages
-   * @param {object} [params]                - Override params for this call only
+   * @param {UserMessage} userMessage
    * @returns {Promise<string>}
    */
-  async chat(input, params = {}) {
-    const messages = this._normalizeInput(input);
-    const mergedParams = { ...this.defaultParams, ...params };
+  async sendMessage(userMessage) {
+    const messages = this._buildMessages(userMessage);
 
-    let response;
+    const response = await this._client.chat.completions.create({
+      model: this._model,
+      messages,
+      ...this._extraParams,
+    });
 
-    switch (this.provider) {
-      case "anthropic":
-        response = await this._chatAnthropic(messages, mergedParams);
-        break;
-      case "openai":
-        response = await this._chatOpenAI(messages, mergedParams);
-        break;
-      case "google":
-        response = await this._chatGoogle(messages, mergedParams);
-        break;
+    const assistantText = response.choices[0].message.content;
+
+    // Update history
+    this._history.push(userMessage.toOpenAIMessage());
+    this._history.push({ role: "assistant", content: assistantText });
+
+    return assistantText;
+  }
+
+  /**
+   * Send a message and get both text and any generated images back.
+   * Used when upstream response (e.g. Gemini via proxy) carries image data.
+   *
+   * @param {UserMessage} userMessage
+   * @returns {Promise<[string, Array<{mimeType: string, data: string}>]>}
+   */
+  async sendMessageMultimodalResponse(userMessage) {
+    const messages = this._buildMessages(userMessage);
+
+    const response = await this._client.chat.completions.create({
+      model: this._model,
+      messages,
+      ...this._extraParams,
+    });
+
+    const choice = response.choices[0];
+    const assistantText = choice.message.content ?? "";
+
+    // Extract any generated images from the response
+    const images = [];
+    if (choice.message.content_parts) {
+      for (const part of choice.message.content_parts) {
+        if (part.type === "image_url" && part.image_url?.url) {
+          const url = part.image_url.url;
+          const match = url.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+          if (match) {
+            images.push({ mimeType: match[1], data: match[2] });
+          }
+        }
+      }
     }
 
     // Update history
-    this.history.push(...messages);
-    this.history.push(new AssistantMessage(response));
+    this._history.push(userMessage.toOpenAIMessage());
+    this._history.push({ role: "assistant", content: assistantText });
 
-    return response;
-  }
-
-  /**
-   * Alias for chat() — matches Python's send() method name.
-   */
-  async send(input, params = {}) {
-    return this.chat(input, params);
+    return [assistantText, images];
   }
 
   /**
    * Stream a response. Yields string chunks as they arrive.
    *
-   * @param {string|UserMessage|Array} input
-   * @param {object} [params]
+   * @param {UserMessage} userMessage
    * @returns {AsyncGenerator<string>}
    */
-  async *stream(input, params = {}) {
-    const messages = this._normalizeInput(input);
-    const mergedParams = { ...this.defaultParams, ...params };
-    let fullText = "";
-
-    switch (this.provider) {
-      case "anthropic":
-        for await (const chunk of this._streamAnthropic(messages, mergedParams)) {
-          fullText += chunk;
-          yield chunk;
-        }
-        break;
-
-      case "openai":
-        for await (const chunk of this._streamOpenAI(messages, mergedParams)) {
-          fullText += chunk;
-          yield chunk;
-        }
-        break;
-
-      case "google":
-        for await (const chunk of this._streamGoogle(messages, mergedParams)) {
-          fullText += chunk;
-          yield chunk;
-        }
-        break;
-    }
-
-    this.history.push(...messages);
-    this.history.push(new AssistantMessage(fullText));
-  }
-
-  /**
-   * Clear conversation history.
-   */
-  clearHistory() {
-    this.history = [];
-  }
-
-  /**
-   * Get current history as plain objects.
-   */
-  getHistory() {
-    return this.history.map((m) => ({ role: m.role, content: m.content }));
-  }
-
-  // ─── Internal: message normalization ────────────────────────────────────────
-
-  _normalizeInput(input) {
-    if (typeof input === "string") {
-      return [new UserMessage(input)];
-    }
-    if (input instanceof UserMessage || input instanceof AssistantMessage) {
-      return [input];
-    }
-    if (Array.isArray(input)) {
-      return input.map((m) => {
-        if (typeof m === "string") return new UserMessage(m);
-        return m;
-      });
-    }
-    throw new Error("[LlmChat] Invalid input type");
-  }
-
-  _buildMessageHistory(newMessages) {
-    return [
-      ...this.history.map((m) => ({ role: m.role, content: m.content })),
-      ...newMessages.map((m) => ({ role: m.role, content: m.content })),
-    ];
-  }
-
-  // ─── Internal: Anthropic ─────────────────────────────────────────────────────
-
-  async _chatAnthropic(messages, params) {
-    const { max_tokens = 4096, ...rest } = params;
-
-    const res = await this._client.messages.create({
-      model: this.model,
-      max_tokens,
-      ...(this.systemMessage ? { system: this.systemMessage } : {}),
-      messages: this._buildMessageHistory(messages),
-      ...rest,
-    });
-
-    return res.content[0].text;
-  }
-
-  async *_streamAnthropic(messages, params) {
-    const { max_tokens = 4096, ...rest } = params;
-
-    const stream = this._client.messages.stream({
-      model: this.model,
-      max_tokens,
-      ...(this.systemMessage ? { system: this.systemMessage } : {}),
-      messages: this._buildMessageHistory(messages),
-      ...rest,
-    });
-
-    for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta?.type === "text_delta"
-      ) {
-        yield event.delta.text;
-      }
-    }
-  }
-
-  // ─── Internal: OpenAI ────────────────────────────────────────────────────────
-
-  _buildOpenAIMessages(messages) {
-    const all = [];
-
-    if (this.systemMessage) {
-      all.push({ role: "system", content: this.systemMessage });
-    }
-
-    for (const m of this.history) {
-      all.push({ role: m.role, content: m.content });
-    }
-
-    for (const m of messages) {
-      all.push({ role: m.role, content: m.content });
-    }
-
-    return all;
-  }
-
-  async _chatOpenAI(messages, params) {
-    const { max_tokens, ...rest } = params;
-
-    const res = await this._client.chat.completions.create({
-      model: this.model,
-      messages: this._buildOpenAIMessages(messages),
-      ...(max_tokens ? { max_tokens } : {}),
-      ...rest,
-    });
-
-    return res.choices[0].message.content;
-  }
-
-  async *_streamOpenAI(messages, params) {
-    const { max_tokens, ...rest } = params;
+  async *stream(userMessage) {
+    const messages = this._buildMessages(userMessage);
 
     const stream = await this._client.chat.completions.create({
-      model: this.model,
-      messages: this._buildOpenAIMessages(messages),
-      ...(max_tokens ? { max_tokens } : {}),
+      model: this._model,
+      messages,
       stream: true,
-      ...rest,
+      ...this._extraParams,
     });
 
+    let fullText = "";
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content;
-      if (delta) yield delta;
-    }
-  }
-
-  // ─── Internal: Google ────────────────────────────────────────────────────────
-
-  _buildGoogleHistory(messages) {
-    const all = [];
-
-    for (const m of this.history) {
-      all.push({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      });
+      if (delta) {
+        fullText += delta;
+        yield delta;
+      }
     }
 
-    // All except the last message go into history
-    const allNew = messages.map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
-
-    return { history: all.concat(allNew.slice(0, -1)), lastMessage: allNew[allNew.length - 1] };
+    this._history.push(userMessage.toOpenAIMessage());
+    this._history.push({ role: "assistant", content: fullText });
   }
 
-  async _chatGoogle(messages, params) {
-    const model = this._client.getGenerativeModel({
-      model: this.model,
-      ...(this.systemMessage
-        ? { systemInstruction: { parts: [{ text: this.systemMessage }] } }
-        : {}),
-    });
+  // ─── History helpers ─────────────────────────────────────────────────────────
 
-    const { history, lastMessage } = this._buildGoogleHistory(messages);
-
-    const chatSession = model.startChat({ history });
-    const result = await chatSession.sendMessage(lastMessage.parts[0].text);
-
-    return result.response.text();
+  /** Get session history as plain objects */
+  get sessionHistory() {
+    return [...this._history];
   }
 
-  async *_streamGoogle(messages, params) {
-    const model = this._client.getGenerativeModel({
-      model: this.model,
-      ...(this.systemMessage
-        ? { systemInstruction: { parts: [{ text: this.systemMessage }] } }
-        : {}),
-    });
+  /** Clear session history */
+  clearHistory() {
+    this._history = [];
+  }
 
-    const { history, lastMessage } = this._buildGoogleHistory(messages);
+  // ─── Internal ────────────────────────────────────────────────────────────────
 
-    const chatSession = model.startChat({ history });
-    const result = await chatSession.sendMessageStream(
-      lastMessage.parts[0].text
-    );
+  _buildMessages(userMessage) {
+    const messages = [];
 
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      if (text) yield text;
+    if (this.systemMessage) {
+      messages.push({ role: "system", content: this.systemMessage });
     }
+
+    for (const h of this._history) {
+      messages.push(h);
+    }
+
+    messages.push(userMessage.toOpenAIMessage());
+    return messages;
   }
 }

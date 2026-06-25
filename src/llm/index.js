@@ -1,1 +1,6 @@
-export { LlmChat, UserMessage, AssistantMessage, SystemMessage } from "./chat.js";
+export {
+  LlmChat,
+  UserMessage,
+  ImageContent,
+  FileContentWithMimeType,
+} from "./chat.js";
