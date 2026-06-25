@@ -18,18 +18,40 @@ import { getAppIdentifier, getIntegrationProxyUrl } from "./utils";
  * the assistant message can be round-tripped into history with byte-for-byte
  * fidelity (providers reject any drift).
  */
-export interface ToolCall {
+export class ToolCall {
   id: string;
   name: string;
   arguments: Record<string, any>;
   raw_arguments: string;
+
+  constructor({ id, name, arguments: args, raw_arguments }: {
+    id: string;
+    name: string;
+    arguments: Record<string, any>;
+    raw_arguments: string;
+  }) {
+    this.id = id;
+    this.name = name;
+    this.arguments = args;
+    this.raw_arguments = raw_arguments;
+  }
 }
 
 /** Token counts for cost / observability. */
-export interface Usage {
+export class Usage {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
+
+  constructor({ input_tokens, output_tokens, total_tokens }: {
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+  }) {
+    this.input_tokens = input_tokens;
+    this.output_tokens = output_tokens;
+    this.total_tokens = total_tokens;
+  }
 }
 
 /**
@@ -38,42 +60,84 @@ export interface Usage {
  * `tool_calls` is null when the model did not call any custom function.
  * `raw` is the full response — escape hatch for provider-specific fields.
  */
-export interface ChatResponse {
+export class ChatResponse {
   content: string | null;
   tool_calls: ToolCall[] | null;
   finish_reason: string;
   usage: Usage;
   raw: any;
+
+  constructor({ content, tool_calls, finish_reason, usage, raw }: {
+    content: string | null;
+    tool_calls: ToolCall[] | null;
+    finish_reason: string;
+    usage: Usage;
+    raw: any;
+  }) {
+    this.content = content;
+    this.tool_calls = tool_calls;
+    this.finish_reason = finish_reason;
+    this.usage = usage;
+    this.raw = raw;
+  }
 }
 
 /** A piece of assistant text. Append to your UI as it arrives. */
-export interface TextDelta {
-  type: "text_delta";
+export class TextDelta {
+  type: "text_delta" = "text_delta";
   content: string;
+
+  constructor(content: string) {
+    this.content = content;
+  }
 }
 
 /** Fired once when the model begins emitting a tool call. */
-export interface ToolCallStart {
-  type: "tool_call_start";
+export class ToolCallStart {
+  type: "tool_call_start" = "tool_call_start";
   id: string;
   name: string;
   index: number;
+
+  constructor({ id, name, index }: { id: string; name: string; index: number }) {
+    this.id = id;
+    this.name = name;
+    this.index = index;
+  }
 }
 
 /** Fired when a tool call's argument JSON is fully assembled. */
-export interface ToolCallReady {
-  type: "tool_call_ready";
+export class ToolCallReady {
+  type: "tool_call_ready" = "tool_call_ready";
   tool_call: ToolCall;
+
+  constructor(tool_call: ToolCall) {
+    this.tool_call = tool_call;
+  }
 }
 
 /** Fired exactly once at the end of the stream. */
-export interface StreamDone {
-  type: "stream_done";
+export class StreamDone {
+  type: "stream_done" = "stream_done";
   content: string | null;
   tool_calls: ToolCall[] | null;
   finish_reason: string;
   usage: Usage;
   raw: any;
+
+  constructor({ content, tool_calls, finish_reason, usage, raw }: {
+    content: string | null;
+    tool_calls: ToolCall[] | null;
+    finish_reason: string;
+    usage: Usage;
+    raw: any;
+  }) {
+    this.content = content;
+    this.tool_calls = tool_calls;
+    this.finish_reason = finish_reason;
+    this.usage = usage;
+    this.raw = raw;
+  }
 }
 
 export type ChatStreamEvent = TextDelta | ToolCallStart | ToolCallReady | StreamDone;
@@ -82,17 +146,19 @@ export type ChatStreamEvent = TextDelta | ToolCallStart | ToolCallReady | Stream
 // File Content Classes
 // ============================================================
 
-export interface FileContent {
+export class FileContent {
   content_type: string;
   file_content_base64: string;
+
+  constructor(content_type: string, file_content_base64: string) {
+    this.content_type = content_type;
+    this.file_content_base64 = file_content_base64;
+  }
 }
 
-export class ImageContent implements FileContent {
-  content_type: string = "image";
-  file_content_base64: string;
-
+export class ImageContent extends FileContent {
   constructor(imageBase64: string) {
-    this.file_content_base64 = imageBase64;
+    super("image", imageBase64);
   }
 
   static getMimeType(fileContentBase64: string): string {
@@ -104,14 +170,10 @@ export class ImageContent implements FileContent {
   }
 }
 
-export class FileContentWithMimeType implements FileContent {
-  content_type: string;
-  file_content_base64: string;
-
+export class FileContentWithMimeType extends FileContent {
   constructor(mimeType: string, filePath: string) {
     const fileBytes = fs.readFileSync(filePath);
-    this.file_content_base64 = fileBytes.toString("base64");
-    this.content_type = mimeType;
+    super(mimeType, fileBytes.toString("base64"));
   }
 }
 
@@ -290,7 +352,7 @@ export class LlmChat {
 
         if (delta.content) {
           textBuf.push(delta.content);
-          yield { type: "text_delta", content: delta.content } as TextDelta;
+          yield new TextDelta(delta.content);
         }
 
         if (delta.tool_calls) {
@@ -306,7 +368,7 @@ export class LlmChat {
 
             if (!started.has(idx) && st.id && st.name) {
               started.add(idx);
-              yield { type: "tool_call_start", id: st.id, name: st.name, index: idx } as ToolCallStart;
+              yield new ToolCallStart({ id: st.id!, name: st.name!, index: idx });
             }
           }
         }
@@ -328,28 +390,22 @@ export class LlmChat {
       } catch {
         parsed = {};
       }
-      const tc: ToolCall = {
-        id: st.id,
-        name: st.name,
-        arguments: parsed,
-        raw_arguments: rawArgs,
-      };
+      const tc = new ToolCall({ id: st.id!, name: st.name!, arguments: parsed, raw_arguments: rawArgs });
       finalTcs.push(tc);
-      yield { type: "tool_call_ready", tool_call: tc } as ToolCallReady;
+      yield new ToolCallReady(tc);
     }
 
     const fullText = textBuf.join("") || null;
     messages.push(this._assistantHistoryMessage(fullText, finalTcs.length > 0 ? finalTcs : null));
     await this._saveMessages(messages);
 
-    yield {
-      type: "stream_done",
+    yield new StreamDone({
       content: fullText,
       tool_calls: finalTcs.length > 0 ? finalTcs : null,
       finish_reason: finishReason,
-      usage: usage || { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+      usage: usage || new Usage({ input_tokens: 0, output_tokens: 0, total_tokens: 0 }),
       raw: lastChunk,
-    } as StreamDone;
+    });
   }
 
   /**
@@ -476,13 +532,13 @@ export class LlmChat {
       ? rawToolCalls.map((tc: any) => this._parseToolCall(tc))
       : null;
 
-    return {
+    return new ChatResponse({
       content,
       tool_calls: parsedToolCalls,
       finish_reason: finishReason,
       usage: this._extractUsage(raw),
       raw,
-    };
+    });
   }
 
   private _parseToolCall(tc: any): ToolCall {
@@ -493,21 +549,21 @@ export class LlmChat {
     } catch {
       parsed = {};
     }
-    return {
+    return new ToolCall({
       id: tc.id,
       name: tc.function.name,
       arguments: parsed,
       raw_arguments: rawArgs,
-    };
+    });
   }
 
   private _extractUsage(raw: any): Usage {
     const u = raw.usage;
-    if (!u) return { input_tokens: 0, output_tokens: 0, total_tokens: 0 };
+    if (!u) return new Usage({ input_tokens: 0, output_tokens: 0, total_tokens: 0 });
     const inputTokens = u.prompt_tokens ?? u.input_tokens ?? 0;
     const outputTokens = u.completion_tokens ?? u.output_tokens ?? 0;
     const totalTokens = u.total_tokens ?? inputTokens + outputTokens;
-    return { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: totalTokens };
+    return new Usage({ input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: totalTokens });
   }
 
   private _extractResponseText(response: any): string {

@@ -1,36 +1,28 @@
 /**
  * emergentintegrations - Node.js/TypeScript package
  * A library for various integrations including payments and LLM services.
- *
  * Exact port of the Python emergentintegrations v0.2.0 package.
- *
  * @version 0.2.0
  */
 
-// ============================================================
-// LLM Module Exports
-// ============================================================
-
-// Core chat
+// Core chat — all exported as runtime classes
 export {
   LlmChat,
   ChatError,
-  ImageContent,
-  FileContentWithMimeType,
   UserMessage,
-} from "./llm/chat";
-
-export type {
-  ChatResponse,
+  ImageContent,
+  FileContent,
+  FileContentWithMimeType,
   ToolCall,
   Usage,
-  ChatStreamEvent,
+  ChatResponse,
   TextDelta,
   ToolCallStart,
   ToolCallReady,
   StreamDone,
-  FileContent,
 } from "./llm/chat";
+
+export type { ChatStreamEvent } from "./llm/chat";
 
 // Utilities
 export { getAppIdentifier, getIntegrationProxyUrl } from "./llm/utils";
@@ -46,10 +38,7 @@ export { OpenAIImageGeneration } from "./llm/openai/imageGeneration";
 export { GeminiImageGeneration } from "./llm/gemini/imageGeneration";
 export { GeminiVideoGeneration } from "./llm/gemini/videoGeneration";
 
-// ============================================================
-// Payments Module Exports
-// ============================================================
-
+// Payments
 export { StripeCheckout, CheckoutError } from "./payments/stripe/checkout";
 export type {
   CheckoutSessionRequest,
