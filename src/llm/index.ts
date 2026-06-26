@@ -14,3 +14,6 @@ export {
   StreamDone,
 } from "./chat";
 export type { ChatStreamEvent } from "./chat";
+
+export { listModels } from "./models";
+export type { ModelInfo, ListModelsOptions } from "./models";

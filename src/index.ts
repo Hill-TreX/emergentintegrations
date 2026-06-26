@@ -27,6 +27,10 @@ export type { ChatStreamEvent } from "./llm/chat";
 // Utilities
 export { getAppIdentifier, getIntegrationProxyUrl } from "./llm/utils";
 
+// Model listing
+export { listModels } from "./llm/models";
+export type { ModelInfo, ListModelsOptions } from "./llm/models";
+
 // OpenAI integrations
 export { OpenAIChatRealtime } from "./llm/openai/realtime";
 export { OpenAIVideoGeneration } from "./llm/openai/videoGeneration";

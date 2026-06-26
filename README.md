@@ -220,6 +220,48 @@ Keys containing `sk_test_emergent` are automatically routed through the Emergent
 
 ---
 
+## Listing available models
+
+```js
+const { listModels } = require("emergentintegrations");
+
+// List OpenAI models (default)
+const models = await listModels({ apiKey: process.env.OPENAI_API_KEY });
+models.forEach(m => console.log(m.id, m.provider));
+
+// List Anthropic models
+const models = await listModels({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  provider: "anthropic",
+});
+
+// List Gemini models
+const models = await listModels({
+  apiKey: process.env.GOOGLE_API_KEY,
+  provider: "gemini",
+});
+
+// List ALL providers at once via Emergent proxy
+const models = await listModels({
+  apiKey: process.env.EMERGENT_LLM_KEY,
+  provider: "all",
+});
+models.forEach(m => console.log(m.provider, m.id));
+```
+
+Each model entry returns:
+
+```js
+{
+  id: "gpt-4o",           // model string to pass to withModel()
+  provider: "openai",     // "openai" | "anthropic" | "gemini"
+  created: 1715367049,    // unix timestamp (when available)
+  owned_by: "openai",     // owner string (when available)
+}
+```
+
+---
+
 ## Migrating from Python
 
 | Python | Node.js |
