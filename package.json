@@ -1,6 +1,6 @@
 {
   "name": "emergentintegrations",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "A Node.js library for various integrations including payments and LLM services - exact port of the Python emergentintegrations package.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -44,6 +44,7 @@
     "bin",
     "README.md",
     "AGENTS.md",
+    "CLAUDE.md",
     ".cursorrules"
   ],
   "exports": {

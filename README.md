@@ -28,7 +28,13 @@ If you use an AI coding agent (Cursor, Windsurf, Emergent, Copilot), run this on
 npx emergentintegrations init
 ```
 
-This copies `AGENTS.md` and `.cursorrules` into your project — nothing is changed automatically. Your agent will then follow the correct usage rules and never reach for the raw OpenAI SDK. Commit these files so your whole team benefits.
+This copies `CLAUDE.md`, `AGENTS.md`, and `.cursorrules` into your project — nothing is changed automatically. Your agent will then follow the correct usage rules and never reach for the raw OpenAI SDK. Commit these files so your whole team benefits.
+
+| File | Covers |
+|---|---|
+| `CLAUDE.md` | Claude Code, claude.ai |
+| `AGENTS.md` | Codex, general agents |
+| `.cursorrules` | Cursor, Windsurf, Zed |
 
 ## Quick start
 
