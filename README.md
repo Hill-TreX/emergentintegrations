@@ -20,6 +20,16 @@ If you use Gemini image generation, also install:
 npm install @google/genai
 ```
 
+### Set up AI agent rules (optional but recommended)
+
+If you use an AI coding agent (Cursor, Windsurf, Emergent, Copilot), run this once after installing to copy the rule files to your project root:
+
+```bash
+npx emergentintegrations init
+```
+
+This copies `AGENTS.md` and `.cursorrules` into your project — nothing is changed automatically. Your agent will then follow the correct usage rules and never reach for the raw OpenAI SDK. Commit these files so your whole team benefits.
+
 ## Quick start
 
 ```js
