@@ -27,6 +27,10 @@ export type { ChatStreamEvent } from "./llm/chat";
 // Utilities
 export { getAppIdentifier, getIntegrationProxyUrl } from "./llm/utils";
 
+// Client factory — the correct way to create a chat client
+export { createChat, validateApiKey, getProxyInfo } from "./llm/client";
+export type { CreateChatOptions } from "./llm/client";
+
 // Model listing
 export { listModels } from "./llm/models";
 export type { ModelInfo, ListModelsOptions } from "./llm/models";

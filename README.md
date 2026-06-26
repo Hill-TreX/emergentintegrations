@@ -220,6 +220,63 @@ Keys containing `sk_test_emergent` are automatically routed through the Emergent
 
 ---
 
+## Clean code — the right way to use this package
+
+Never create a raw OpenAI client or set `baseURL` manually. The package handles all routing internally.
+
+```js
+// ❌ WRONG — never do this
+const OpenAI = require("openai");
+const client = new OpenAI({
+  apiKey: process.env.EMERGENT_LLM_KEY,
+  baseURL: "https://integrations.emergentagent.com/llm",
+});
+
+// ✅ CORRECT — always use this
+const { LlmChat, UserMessage } = require("emergentintegrations");
+const chat = new LlmChat(process.env.EMERGENT_LLM_KEY, sessionId, systemMessage)
+  .withModel("anthropic", "claude-sonnet-4-6");
+const reply = await chat.sendMessage(new UserMessage({ text: input }));
+```
+
+### `createChat()` — factory helper for clean setup
+
+```js
+const { createChat, validateApiKey, UserMessage } = require("emergentintegrations");
+
+// Validate your key at startup — throws a clear error if missing or malformed
+const apiKey = validateApiKey(process.env.EMERGENT_LLM_KEY);
+
+// Create a chat client cleanly
+const chat = createChat({
+  apiKey,
+  sessionId: "user-123",
+  systemMessage: "You are a helpful assistant.",
+  provider: "anthropic",         // "openai" | "anthropic" | "gemini"
+  model: "claude-sonnet-4-6",
+  params: { temperature: 0.3 },  // optional
+});
+
+const reply = await chat.sendMessage(new UserMessage({ text: "Hello!" }));
+```
+
+### `getProxyInfo()` — debug routing
+
+```js
+const { getProxyInfo } = require("emergentintegrations");
+
+const info = getProxyInfo(process.env.EMERGENT_LLM_KEY);
+console.log(info);
+// { isEmergent: true, proxyUrl: "https://integrations.emergentagent.com/llm" }
+```
+
+### For AI agents
+
+This repo includes `AGENTS.md` and `.cursorrules` with strict rules for AI coding agents.
+If you are an AI agent: read `AGENTS.md` before writing any LLM integration code.
+
+---
+
 ## Listing available models
 
 ```js

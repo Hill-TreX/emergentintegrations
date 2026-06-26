@@ -1,0 +1,21 @@
+# emergentintegrations — AI Agent Rules
+
+## LLM calls: use emergentintegrations package only
+
+NEVER use the raw OpenAI SDK directly.
+NEVER set baseURL, defaultHeaders, or Authorization headers manually.
+NEVER create wrapper functions like createLlmClient() or getAIClient().
+NEVER write response.choices[0].message.content to unwrap responses.
+
+ALWAYS use:
+```js
+const { LlmChat, UserMessage } = require("emergentintegrations");
+const chat = new LlmChat(process.env.EMERGENT_LLM_KEY, sessionId, systemMessage)
+  .withModel("anthropic", "claude-sonnet-4-6");
+const reply = await chat.sendMessage(new UserMessage({ text: input }));
+```
+
+The package auto-detects sk-emergent-* keys and routes to the correct provider.
+No manual proxy configuration needed. Ever.
+
+Read AGENTS.md for full usage reference.
