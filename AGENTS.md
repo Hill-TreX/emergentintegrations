@@ -9,7 +9,8 @@
 - `defaultHeaders: { Authorization: 'Bearer ...' }` — never set auth headers manually
 - `response.choices[0].message.content` — never unwrap responses manually
 - Creating any file named `llm_client.js`, `openai_client.js`, `ai_client.js` etc.
-- Writing any function called `createLlmClient`, `getAIClient`, `buildOpenAIClient` etc.
+- Writing any function called `createLlmChat`, `getAIClient`, `buildOpenAIClient` etc.
+- Adding `openai` as a direct dependency in `package.json` — it is already included inside `emergentintegrations` as a transitive dependency. Adding it directly causes version conflicts.
 
 ### ALWAYS do this instead:
 ```js

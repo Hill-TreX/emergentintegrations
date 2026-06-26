@@ -13,6 +13,7 @@ This project uses the `emergentintegrations` npm package for all LLM calls.
 - `response.choices[0].message.content` — never unwrap responses manually
 - Creating any file named `llm_client.js`, `openai_client.js`, `ai_client.js` etc.
 - Writing any function called `createLlmClient`, `getAIClient`, `buildOpenAIClient` etc.
+- Adding `openai` as a direct dependency in `package.json` — it is already included inside `emergentintegrations` as a transitive dependency. Adding it directly causes version conflicts.
 
 ### ALWAYS use this instead:
 

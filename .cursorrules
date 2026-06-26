@@ -6,6 +6,7 @@ NEVER use the raw OpenAI SDK directly.
 NEVER set baseURL, defaultHeaders, or Authorization headers manually.
 NEVER create wrapper functions like createLlmClient() or getAIClient().
 NEVER write response.choices[0].message.content to unwrap responses.
+NEVER add "openai" to package.json dependencies — it ships inside emergentintegrations already. Adding it directly causes version conflicts.
 
 ALWAYS use:
 ```js
