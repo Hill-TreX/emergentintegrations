@@ -1,6 +1,6 @@
 {
   "name": "emergentintegrations",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "description": "A Node.js library for various integrations including payments and LLM services - exact port of the Python emergentintegrations package.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -61,17 +61,65 @@
       "require": "./dist/llm/chat.js",
       "types": "./dist/llm/chat.d.ts"
     },
+    "./llm/utils": {
+      "require": "./dist/llm/utils.js",
+      "types": "./dist/llm/utils.d.ts"
+    },
+    "./llm/models": {
+      "require": "./dist/llm/models.js",
+      "types": "./dist/llm/models.d.ts"
+    },
+    "./llm/client": {
+      "require": "./dist/llm/client.js",
+      "types": "./dist/llm/client.d.ts"
+    },
     "./llm/openai": {
       "require": "./dist/llm/openai/index.js",
       "types": "./dist/llm/openai/index.d.ts"
+    },
+    "./llm/openai/realtime": {
+      "require": "./dist/llm/openai/realtime.js",
+      "types": "./dist/llm/openai/realtime.d.ts"
+    },
+    "./llm/openai/textToSpeech": {
+      "require": "./dist/llm/openai/textToSpeech.js",
+      "types": "./dist/llm/openai/textToSpeech.d.ts"
+    },
+    "./llm/openai/speechToText": {
+      "require": "./dist/llm/openai/speechToText.js",
+      "types": "./dist/llm/openai/speechToText.d.ts"
+    },
+    "./llm/openai/imageGeneration": {
+      "require": "./dist/llm/openai/imageGeneration.js",
+      "types": "./dist/llm/openai/imageGeneration.d.ts"
+    },
+    "./llm/openai/videoGeneration": {
+      "require": "./dist/llm/openai/videoGeneration.js",
+      "types": "./dist/llm/openai/videoGeneration.d.ts"
     },
     "./llm/gemini": {
       "require": "./dist/llm/gemini/index.js",
       "types": "./dist/llm/gemini/index.d.ts"
     },
+    "./llm/gemini/imageGeneration": {
+      "require": "./dist/llm/gemini/imageGeneration.js",
+      "types": "./dist/llm/gemini/imageGeneration.d.ts"
+    },
+    "./llm/gemini/videoGeneration": {
+      "require": "./dist/llm/gemini/videoGeneration.js",
+      "types": "./dist/llm/gemini/videoGeneration.d.ts"
+    },
+    "./payments": {
+      "require": "./dist/payments/index.js",
+      "types": "./dist/payments/index.d.ts"
+    },
     "./payments/stripe": {
       "require": "./dist/payments/stripe/index.js",
       "types": "./dist/payments/stripe/index.d.ts"
+    },
+    "./payments/stripe/checkout": {
+      "require": "./dist/payments/stripe/checkout.js",
+      "types": "./dist/payments/stripe/checkout.d.ts"
     }
   },
   "bin": {
