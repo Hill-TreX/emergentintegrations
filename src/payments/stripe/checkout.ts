@@ -2,7 +2,20 @@
  * Stripe checkout integration for payment processing.
  * Exact port of payments/stripe/checkout.py
  */
-import Stripe from "stripe";
+// stripe is an OPTIONAL peer dependency — loaded lazily so LLM-only users
+// never need it installed. Install with: npm install stripe
+type Stripe = any;
+
+function loadStripe(): any {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require("stripe");
+  } catch {
+    throw new Error(
+      "[emergentintegrations] The 'stripe' package is required for StripeCheckout. Install it with: npm install stripe"
+    );
+  }
+}
 
 // ============================================================
 // Request/Response Interfaces (matching Python Pydantic models)
@@ -96,7 +109,7 @@ export class StripeCheckout {
     this.webhookUrl = webhookUrl;
 
     // If api key contains sk_test_emergent, set api base to emergent integration proxy
-    const stripeOpts: Stripe.StripeConfig = {
+    const stripeOpts: any = {
       apiVersion: "2024-06-20" as any,
     };
 
@@ -106,7 +119,8 @@ export class StripeCheckout {
       stripeOpts.port = 443;
     }
 
-    this.stripe = new Stripe(apiKey, stripeOpts);
+    const StripeSDK = loadStripe();
+    this.stripe = new StripeSDK(apiKey, stripeOpts);
   }
 
   /**
@@ -164,7 +178,7 @@ export class StripeCheckout {
       this._validateRequest(request);
 
       // Prepare line items based on payment method
-      let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
+      let lineItems: any[];
 
       if (request.amount !== undefined) {
         // Convert amount to cents/smallest currency unit

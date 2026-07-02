@@ -1,13 +1,13 @@
 {
   "name": "emergentintegrations",
-  "version": "2.7.2",
+  "version": "3.0.0",
   "description": "A Node.js library for various integrations including payments and LLM services - exact port of the Python emergentintegrations package.",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "types": "dist/cjs/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/build.js",
     "prepare": "npm run build",
-    "test": "node dist/test.js"
+    "test": "node dist/cjs/test.js"
   },
   "keywords": [
     "llm",
@@ -27,9 +27,8 @@
   "author": "Hill TreX",
   "license": "MIT",
   "dependencies": {
-    "openai": "^4.50.0",
-    "@google/genai": "^1.0.0",
-    "stripe": "^14.0.0"
+    "openai": "^6.0.0",
+    "@google/genai": "^2.0.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
@@ -50,79 +49,106 @@
   ],
   "exports": {
     ".": {
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/cjs/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
     },
     "./llm": {
-      "require": "./dist/llm/index.js",
-      "types": "./dist/llm/index.d.ts"
+      "types": "./dist/cjs/llm/index.d.ts",
+      "import": "./dist/esm/llm/index.js",
+      "require": "./dist/cjs/llm/index.js"
     },
     "./llm/chat": {
-      "require": "./dist/llm/chat.js",
-      "types": "./dist/llm/chat.d.ts"
+      "types": "./dist/cjs/llm/chat.d.ts",
+      "import": "./dist/esm/llm/chat.js",
+      "require": "./dist/cjs/llm/chat.js"
     },
     "./llm/utils": {
-      "require": "./dist/llm/utils.js",
-      "types": "./dist/llm/utils.d.ts"
+      "types": "./dist/cjs/llm/utils.d.ts",
+      "import": "./dist/esm/llm/utils.js",
+      "require": "./dist/cjs/llm/utils.js"
     },
     "./llm/models": {
-      "require": "./dist/llm/models.js",
-      "types": "./dist/llm/models.d.ts"
+      "types": "./dist/cjs/llm/models.d.ts",
+      "import": "./dist/esm/llm/models.js",
+      "require": "./dist/cjs/llm/models.js"
     },
     "./llm/client": {
-      "require": "./dist/llm/client.js",
-      "types": "./dist/llm/client.d.ts"
+      "types": "./dist/cjs/llm/client.d.ts",
+      "import": "./dist/esm/llm/client.js",
+      "require": "./dist/cjs/llm/client.js"
     },
     "./llm/openai": {
-      "require": "./dist/llm/openai/index.js",
-      "types": "./dist/llm/openai/index.d.ts"
+      "types": "./dist/cjs/llm/openai/index.d.ts",
+      "import": "./dist/esm/llm/openai/index.js",
+      "require": "./dist/cjs/llm/openai/index.js"
     },
     "./llm/openai/realtime": {
-      "require": "./dist/llm/openai/realtime.js",
-      "types": "./dist/llm/openai/realtime.d.ts"
+      "types": "./dist/cjs/llm/openai/realtime.d.ts",
+      "import": "./dist/esm/llm/openai/realtime.js",
+      "require": "./dist/cjs/llm/openai/realtime.js"
     },
     "./llm/openai/textToSpeech": {
-      "require": "./dist/llm/openai/textToSpeech.js",
-      "types": "./dist/llm/openai/textToSpeech.d.ts"
+      "types": "./dist/cjs/llm/openai/textToSpeech.d.ts",
+      "import": "./dist/esm/llm/openai/textToSpeech.js",
+      "require": "./dist/cjs/llm/openai/textToSpeech.js"
     },
     "./llm/openai/speechToText": {
-      "require": "./dist/llm/openai/speechToText.js",
-      "types": "./dist/llm/openai/speechToText.d.ts"
+      "types": "./dist/cjs/llm/openai/speechToText.d.ts",
+      "import": "./dist/esm/llm/openai/speechToText.js",
+      "require": "./dist/cjs/llm/openai/speechToText.js"
     },
     "./llm/openai/imageGeneration": {
-      "require": "./dist/llm/openai/imageGeneration.js",
-      "types": "./dist/llm/openai/imageGeneration.d.ts"
+      "types": "./dist/cjs/llm/openai/imageGeneration.d.ts",
+      "import": "./dist/esm/llm/openai/imageGeneration.js",
+      "require": "./dist/cjs/llm/openai/imageGeneration.js"
     },
     "./llm/openai/videoGeneration": {
-      "require": "./dist/llm/openai/videoGeneration.js",
-      "types": "./dist/llm/openai/videoGeneration.d.ts"
+      "types": "./dist/cjs/llm/openai/videoGeneration.d.ts",
+      "import": "./dist/esm/llm/openai/videoGeneration.js",
+      "require": "./dist/cjs/llm/openai/videoGeneration.js"
     },
     "./llm/gemini": {
-      "require": "./dist/llm/gemini/index.js",
-      "types": "./dist/llm/gemini/index.d.ts"
+      "types": "./dist/cjs/llm/gemini/index.d.ts",
+      "import": "./dist/esm/llm/gemini/index.js",
+      "require": "./dist/cjs/llm/gemini/index.js"
     },
     "./llm/gemini/imageGeneration": {
-      "require": "./dist/llm/gemini/imageGeneration.js",
-      "types": "./dist/llm/gemini/imageGeneration.d.ts"
+      "types": "./dist/cjs/llm/gemini/imageGeneration.d.ts",
+      "import": "./dist/esm/llm/gemini/imageGeneration.js",
+      "require": "./dist/cjs/llm/gemini/imageGeneration.js"
     },
     "./llm/gemini/videoGeneration": {
-      "require": "./dist/llm/gemini/videoGeneration.js",
-      "types": "./dist/llm/gemini/videoGeneration.d.ts"
+      "types": "./dist/cjs/llm/gemini/videoGeneration.d.ts",
+      "import": "./dist/esm/llm/gemini/videoGeneration.js",
+      "require": "./dist/cjs/llm/gemini/videoGeneration.js"
     },
     "./payments": {
-      "require": "./dist/payments/index.js",
-      "types": "./dist/payments/index.d.ts"
+      "types": "./dist/cjs/payments/index.d.ts",
+      "import": "./dist/esm/payments/index.js",
+      "require": "./dist/cjs/payments/index.js"
     },
     "./payments/stripe": {
-      "require": "./dist/payments/stripe/index.js",
-      "types": "./dist/payments/stripe/index.d.ts"
+      "types": "./dist/cjs/payments/stripe/index.d.ts",
+      "import": "./dist/esm/payments/stripe/index.js",
+      "require": "./dist/cjs/payments/stripe/index.js"
     },
     "./payments/stripe/checkout": {
-      "require": "./dist/payments/stripe/checkout.js",
-      "types": "./dist/payments/stripe/checkout.d.ts"
+      "types": "./dist/cjs/payments/stripe/checkout.d.ts",
+      "import": "./dist/esm/payments/stripe/checkout.js",
+      "require": "./dist/cjs/payments/stripe/checkout.js"
     }
   },
   "bin": {
     "emergentintegrations": "./bin/init.js"
-  }
+  },
+  "peerDependencies": {
+    "stripe": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "stripe": {
+      "optional": true
+    }
+  },
+  "module": "dist/esm/index.js"
 }

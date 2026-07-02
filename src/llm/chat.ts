@@ -203,15 +203,15 @@ export class ChatError extends Error {
 // ============================================================
 
 export class LlmChat {
-  private apiKey: string;
-  private model: string = "gpt-4o";
-  private provider: string = "openai";
-  private messages: any[];
-  private sessionId: string;
-  private extraParams: Record<string, any> = {};
-  private customHeaders: Record<string, string> = {};
-  private tools: any[] | null = null;
-  private toolChoice: any = null;
+  public apiKey: string;
+  public model: string = "gpt-4o";
+  public provider: string = "openai";
+  public messages: any[];
+  public sessionId: string;
+  public extraParams: Record<string, any> = {};
+  public customHeaders: Record<string, string> = {};
+  public tools: any[] | null = null;
+  public toolChoice: any = null;
 
   constructor(
     apiKey: string,

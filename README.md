@@ -14,10 +14,20 @@ Or install directly from GitHub:
 npm install github:Hill-TreX/emergentintegrations
 ```
 
-If you use Gemini image generation, also install:
+If you use Stripe payments, also install:
 
 ```bash
-npm install @google/genai
+npm install stripe
+```
+
+Works natively in both CommonJS and ESM projects:
+
+```js
+// CommonJS
+const { LlmChat, UserMessage } = require("emergentintegrations");
+
+// ESM — no createRequire workaround needed
+import { LlmChat, UserMessage } from "emergentintegrations";
 ```
 
 ### Set up AI agent rules (optional but recommended)
