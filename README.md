@@ -1,6 +1,19 @@
 # emergentintegrations
 
-Node.js/TypeScript port of the Python [`emergentintegrations`](https://github.com/emergentbase/emergentintegrations) package (v0.2.0). Unified interface for LLM chat, image generation, video generation, text-to-speech, speech-to-text, and Stripe payments — with built-in Emergent proxy support.
+**One client, every provider.** Chat with OpenAI, Anthropic, and Google models through a single unified API — one key, one interface, zero manual proxy configuration. Plus image generation, video generation, text-to-speech, speech-to-text, realtime audio, and Stripe payments.
+
+```js
+// Same code, any provider — just change the model
+chat.withModel("openai", "gpt-4o")
+chat.withModel("anthropic", "claude-sonnet-4-6")
+chat.withModel("gemini", "gemini-1.5-pro")
+```
+
+- **Framework agnostic** — works with Express, Fastify, Hono, plain Node, serverless, anywhere
+- **Dual ESM + CommonJS** — native `import` and `require`, no workarounds
+- **Emergent proxy built in** — `sk-emergent-*` keys route automatically, no `baseURL` wiring
+- **AI-agent ready** — ships rule files (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`) that stop coding agents from bypassing the package
+- **1:1 Python parity** — verified drop-in replacement for the Python [`emergentintegrations`](https://github.com/emergentbase/emergentintegrations) package, ideal for Python-to-Node migrations
 
 ## Install
 
@@ -369,24 +382,24 @@ Each model entry returns:
 
 ## Import paths
 
-All of the following resolve to the same classes:
+All of the following resolve to the same classes, and every path works in **both** CommonJS and ESM:
 
 ```js
-// Root
+// CommonJS
 const { LlmChat, UserMessage } = require("emergentintegrations");
-
-// LLM submodule
-const { LlmChat, UserMessage } = require("emergentintegrations/llm");
-const { LlmChat, UserMessage } = require("emergentintegrations/llm/chat");
-
-// OpenAI compat path (mirrors Python's llm.openai import)
-const { LlmChat, UserMessage, OpenAITextToSpeech } = require("emergentintegrations/llm/openai");
-
-// Gemini
+const { LlmChat } = require("emergentintegrations/llm/chat");
+const { getIntegrationProxyUrl } = require("emergentintegrations/llm/utils");
+const { OpenAITextToSpeech } = require("emergentintegrations/llm/openai");
 const { GeminiImageGeneration } = require("emergentintegrations/llm/gemini");
-
-// Payments
 const { StripeCheckout } = require("emergentintegrations/payments/stripe");
+
+// ESM — identical paths, native import, no createRequire needed
+import { LlmChat, UserMessage } from "emergentintegrations";
+import { LlmChat } from "emergentintegrations/llm/chat";
+import { getIntegrationProxyUrl } from "emergentintegrations/llm/utils";
+import { OpenAITextToSpeech } from "emergentintegrations/llm/openai";
+import { GeminiImageGeneration } from "emergentintegrations/llm/gemini";
+import { StripeCheckout } from "emergentintegrations/payments/stripe";
 ```
 
 ## Development

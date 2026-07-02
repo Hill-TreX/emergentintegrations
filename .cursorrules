@@ -19,4 +19,12 @@ const reply = await chat.sendMessage(new UserMessage({ text: input }));
 The package auto-detects sk-emergent-* keys and routes to the correct provider.
 No manual proxy configuration needed. Ever.
 
+
+Module system: package supports BOTH CommonJS and ESM natively.
+Check package.json — if "type": "module" use import syntax, otherwise require.
+NEVER use createRequire as a workaround — native ESM imports work.
+  CJS: const { LlmChat, UserMessage } = require("emergentintegrations");
+  ESM: import { LlmChat, UserMessage } from "emergentintegrations";
+All subpaths (/llm/utils, /llm/openai/textToSpeech, etc.) work in both.
+
 Read AGENTS.md for full usage reference.

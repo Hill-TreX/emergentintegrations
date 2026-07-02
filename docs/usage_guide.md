@@ -20,6 +20,23 @@ EMERGENT_LLM_KEY=sk-emergent-...
 
 ---
 
+
+## CommonJS vs ESM
+
+The package ships dual builds. Both work natively — pick whichever matches your project:
+
+```js
+// CommonJS (default Node projects)
+const { LlmChat, UserMessage } = require("emergentintegrations");
+
+// ESM ("type": "module" in package.json) or TypeScript
+import { LlmChat, UserMessage } from "emergentintegrations";
+```
+
+Every example below uses `require()` — if your project is ESM, swap to `import` syntax. All subpaths work in both systems.
+
+---
+
 ## Basic chat
 
 ```js

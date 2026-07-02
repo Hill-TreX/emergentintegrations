@@ -46,6 +46,27 @@ EMERGENT_LLM_KEY=sk-emergent-...
 
 Never hardcode API keys. Always read from `process.env`.
 
+
+## Module system — CommonJS AND ESM both supported natively
+
+Detect the project type from package.json before writing imports:
+- If `"type": "module"` is present → use ESM `import` syntax
+- Otherwise → use CommonJS `require` syntax
+- NEVER use `createRequire` as a workaround — native ESM imports work
+
+```js
+// CommonJS project (no "type": "module" in package.json)
+const { LlmChat, UserMessage } = require("emergentintegrations");
+const { getIntegrationProxyUrl } = require("emergentintegrations/llm/utils");
+
+// ESM project ("type": "module" in package.json) or TypeScript
+import { LlmChat, UserMessage } from "emergentintegrations";
+import { getIntegrationProxyUrl } from "emergentintegrations/llm/utils";
+```
+
+All 18 subpaths work identically in both module systems:
+`emergentintegrations`, `/llm`, `/llm/chat`, `/llm/utils`, `/llm/models`, `/llm/client`, `/llm/openai`, `/llm/openai/realtime`, `/llm/openai/textToSpeech`, `/llm/openai/speechToText`, `/llm/openai/imageGeneration`, `/llm/openai/videoGeneration`, `/llm/gemini`, `/llm/gemini/imageGeneration`, `/llm/gemini/videoGeneration`, `/payments`, `/payments/stripe`, `/payments/stripe/checkout`
+
 ## Supported providers and models
 
 ```js
