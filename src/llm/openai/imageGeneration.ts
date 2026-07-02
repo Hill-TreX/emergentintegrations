@@ -1,6 +1,9 @@
 /**
  * OpenAI Image Generation via emergent proxy.
- * Exact port of llm/openai/image_generation.py
+ * Ported from llm/openai/image_generation.py with one deliberate deviation:
+ * this always requests response_format: "b64_json" so callers reliably get
+ * bytes back without an extra network hop. Python lets the API pick a default
+ * and handles either a b64_json or a url response shape dynamically.
  */
 import OpenAI from "openai";
 import { getAppIdentifier, getIntegrationProxyUrl } from "../utils";

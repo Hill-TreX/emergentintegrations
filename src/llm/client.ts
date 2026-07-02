@@ -13,7 +13,7 @@ import { LlmChat } from "./chat";
 import { getIntegrationProxyUrl } from "./utils";
 
 export interface CreateChatOptions {
-  /** Your EMERGENT_LLM_KEY or a direct provider key */
+  /** Your EMERGENT_LLM_KEY (starts with "sk-emergent-"). Any other key throws ChatError. */
   apiKey: string;
   /** Unique session identifier */
   sessionId: string;

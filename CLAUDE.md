@@ -17,6 +17,8 @@ This project uses the `emergentintegrations` npm package for all LLM calls.
 
 ### ALWAYS use this instead:
 
+**`LlmChat` requires an Emergent API key.** A key that doesn't start with `sk-emergent-` throws `ChatError` immediately at construction. Do not pass a direct OpenAI, Anthropic, or Google key to `LlmChat`, it will fail every time. `OpenAITextToSpeech`, `OpenAISpeechToText`, and `OpenAIImageGeneration` are different, they accept either an Emergent key or a direct OpenAI key.
+
 ```js
 const { LlmChat, UserMessage } = require("emergentintegrations");
 

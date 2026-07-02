@@ -73,7 +73,10 @@ export class OpenAISpeechToText {
   /**
    * Transcribe audio into the language of the input audio.
    *
-   * @param file - Audio file path (mp3, mp4, mpeg, mpga, m4a, wav, webm)
+   * @param file - Audio file path (mp3, mp4, mpeg, mpga, m4a, wav, webm).
+   *   Node only accepts a path string. Python's version also accepts an
+   *   already-open file-like object; that input shape is not supported here.
+   *   Write your buffer to a temp file first if you don't already have a path.
    * @param model - Model to use ('whisper-1')
    * @param responseFormat - Format of transcript output
    * @param prompt - Optional text to guide the model's style

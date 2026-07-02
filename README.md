@@ -1,19 +1,20 @@
 # emergentintegrations
 
-**One client, every provider.** Chat with OpenAI, Anthropic, and Google models through a single unified API — one key, one interface, zero manual proxy configuration. Plus image generation, video generation, text-to-speech, speech-to-text, realtime audio, and Stripe payments.
+Node.js client for [Emergent](https://emergentagent.com)'s LLM proxy and platform integrations. Chat with OpenAI, Anthropic, and Google models through one Emergent key, no manual proxy wiring, plus image generation, video generation, text-to-speech, speech-to-text, realtime audio, and Stripe payments.
 
 ```js
-// Same code, any provider — just change the model
+// Same code, any provider — just change the model. Requires an Emergent API key.
 chat.withModel("openai", "gpt-4o")
 chat.withModel("anthropic", "claude-sonnet-4-6")
 chat.withModel("gemini", "gemini-1.5-pro")
 ```
 
+**Key requirements are not the same for every feature.** `LlmChat` requires an Emergent API key (`sk-emergent-*`) and always routes through Emergent's proxy — it does not accept direct OpenAI, Anthropic, or Google keys. `OpenAITextToSpeech`, `OpenAISpeechToText`, and `OpenAIImageGeneration` accept either an Emergent key or a direct OpenAI key. `GeminiImageGeneration` always talks directly to Google and requires a real Google API key. `GeminiVideoGeneration` always routes through the Emergent proxy. `OpenAIChatRealtime` always talks directly to OpenAI and requires a real OpenAI key, there is no proxy path for realtime audio. This isn't a Node-specific limitation, it mirrors the official Python package's actual per-module design exactly.
+
 - **Framework agnostic** — works with Express, Fastify, Hono, plain Node, serverless, anywhere
 - **Dual ESM + CommonJS** — native `import` and `require`, no workarounds
-- **Emergent proxy built in** — `sk-emergent-*` keys route automatically, no `baseURL` wiring
-- **AI-agent ready** — ships rule files (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`) that stop coding agents from bypassing the package
-- **1:1 Python parity** — verified drop-in replacement for the Python [`emergentintegrations`](https://github.com/emergentbase/emergentintegrations) package, ideal for Python-to-Node migrations
+- **AI-agent ready** — ships rule files (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`) that stop coding agents from bypassing the package or assuming key requirements that don't hold
+- **Verified against the official Python package** — audited file by file, not assumed
 
 ## Install
 
@@ -74,10 +75,12 @@ console.log(reply);
 
 ## How routing works
 
-- **`sk-emergent-*` key** → routes through `https://integrations.emergentagent.com/llm` (proxy handles Anthropic, Google, OpenAI)
-- **Any other key** → talks directly to the OpenAI API (or your custom `baseURL`)
+`LlmChat` requires an Emergent API key. Every call routes through `https://integrations.emergentagent.com/llm`, which handles OpenAI, Anthropic, and Google on the backend. A key that doesn't start with `sk-emergent-` throws `ChatError` immediately at construction, not partway through a request.
+
 - `INTEGRATION_PROXY_URL` env var overrides the default proxy endpoint
 - `APP_URL` or `REACT_APP_BACKEND_URL` is forwarded as `X-App-ID` on every request
+
+`OpenAITextToSpeech`, `OpenAISpeechToText`, and `OpenAIImageGeneration` are more permissive: they accept either an Emergent key or a real OpenAI key, and route accordingly. See each class's section below for its actual key requirement, they are not all the same.
 
 ---
 
@@ -95,7 +98,7 @@ new LlmChat(apiKey, sessionId, systemMessage, initialMessages?, customHeaders?)
 
 | Param | Type | Description |
 |---|---|---|
-| `apiKey` | `string` | Provider key or `sk-emergent-*` for proxy routing |
+| `apiKey` | `string` | Must be an Emergent API key, starts with `sk-emergent-`. Throws `ChatError` immediately if not. |
 | `sessionId` | `string` | Session identifier |
 | `systemMessage` | `string` | System prompt |
 | `initialMessages` | `array?` | Seed conversation history (replaces system message) |
@@ -104,9 +107,9 @@ new LlmChat(apiKey, sessionId, systemMessage, initialMessages?, customHeaders?)
 ### Builder methods (chainable)
 
 ```js
-chat.withModel("openai", "gpt-4o-mini")      // provider + model
-chat.withModel("anthropic", "claude-sonnet-4-6") // via sk-emergent-* proxy
-chat.withModel("gemini", "gemini-1.5-pro")    // via sk-emergent-* proxy
+chat.withModel("openai", "gpt-4o-mini")
+chat.withModel("anthropic", "claude-sonnet-4-6")
+chat.withModel("gemini", "gemini-1.5-pro")
 chat.withParams({ temperature: 0.3, max_tokens: 512 })
 chat.withTools(tools, toolChoice?)            // attach function tools
 ```

@@ -43,10 +43,26 @@ check("getAppIdentifier is a function", typeof getAppIdentifier === "function");
 check("getIntegrationProxyUrl is a function", typeof getIntegrationProxyUrl === "function");
 
 // LlmChat defaults
-const chat = new LlmChat("sk-test", "s", "sys");
+// LlmChat requires a real Emergent-shaped key now — the constructor throws otherwise.
+const chat = new LlmChat("sk-emergent-test", "s", "sys");
 check("model default gpt-4o", chat.model === "gpt-4o");
 check("provider default openai", chat.provider === "openai");
 check("messages[0] system", chat.messages[0].role === "system");
+
+// The guard: this is the actual bug fix, so it needs its own real assertion,
+// not just a passing construction elsewhere in the file.
+try {
+  new LlmChat("sk-proj-not-an-emergent-key", "s", "sys");
+  check("LlmChat rejects a direct OpenAI-shaped key", false);
+} catch (e) {
+  check("LlmChat rejects a direct OpenAI-shaped key", e instanceof ChatError);
+}
+try {
+  new LlmChat("sk-ant-not-an-emergent-key", "s", "sys");
+  check("LlmChat rejects a direct Anthropic-shaped key", false);
+} catch (e) {
+  check("LlmChat rejects a direct Anthropic-shaped key", e instanceof ChatError);
+}
 
 // Chain
 chat.withModel("anthropic", "claude-sonnet-4-6").withParams({ temperature: 0.3 });

@@ -220,6 +220,15 @@ export class LlmChat {
     initialMessages?: any[],
     customHeaders?: Record<string, string>
   ) {
+    if (!apiKey.startsWith("sk-emergent-")) {
+      throw new ChatError(
+        "LlmChat requires an Emergent API key (starts with 'sk-emergent-'). " +
+          "Direct provider keys (OpenAI, Anthropic, Google) are not supported by LlmChat in this package. " +
+          "For direct OpenAI keys, use OpenAITextToSpeech, OpenAISpeechToText, or OpenAIImageGeneration instead, " +
+          "which do support direct keys. Get an Emergent key at https://emergentagent.com."
+      );
+    }
+
     this.apiKey = apiKey;
     this.sessionId = sessionId;
     this.messages = initialMessages || [{ role: "system", content: systemMessage }];
@@ -484,16 +493,12 @@ export class LlmChat {
   // Private Methods
   // ============================================================
 
-  private _isEmergentKey(apiKey: string): boolean {
-    return apiKey.startsWith("sk-emergent-");
-  }
-
   private _buildClient(): OpenAI {
-    const opts: any = { apiKey: this.apiKey };
-    if (this._isEmergentKey(this.apiKey)) {
-      opts.baseURL = `${getIntegrationProxyUrl()}/llm`;
-    }
-    // Always forward custom headers (X-App-ID etc) regardless of key type
+    // apiKey is guaranteed to start with "sk-emergent-" by the constructor guard.
+    const opts: any = {
+      apiKey: this.apiKey,
+      baseURL: `${getIntegrationProxyUrl()}/llm`,
+    };
     if (Object.keys(this.customHeaders).length > 0) {
       opts.defaultHeaders = this.customHeaders;
     }
@@ -501,14 +506,11 @@ export class LlmChat {
   }
 
   private _buildCompletionParams(messages: any[], includeTools: boolean): any {
-    let model: string;
-    if (this._isEmergentKey(this.apiKey)) {
-      // With emergent key: gemini gets prefix, everything else is raw model name
-      model = this.provider === "gemini" ? `gemini/${this.model}` : this.model;
-    } else {
-      // Without emergent key: use provider/model format (LiteLLM style)
-      model = `${this.provider}/${this.model}`;
-    }
+    // apiKey is guaranteed to start with "sk-emergent-" by the constructor guard,
+    // so every call routes through the Emergent proxy. Gemini needs a "gemini/"
+    // prefix on the model string for the proxy to route correctly; every other
+    // provider (openai, anthropic) uses the bare model name.
+    const model = this.provider === "gemini" ? `gemini/${this.model}` : this.model;
 
     const params: any = { model, messages };
     if (includeTools && this.tools) {

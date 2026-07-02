@@ -16,8 +16,12 @@ const chat = new LlmChat(process.env.EMERGENT_LLM_KEY, sessionId, systemMessage)
 const reply = await chat.sendMessage(new UserMessage({ text: input }));
 ```
 
-The package auto-detects sk-emergent-* keys and routes to the correct provider.
-No manual proxy configuration needed. Ever.
+LlmChat requires an Emergent API key (sk-emergent-*). A key that doesn't start
+with sk-emergent- throws ChatError immediately at construction, not partway
+through a request. Never pass a direct OpenAI, Anthropic, or Google key to
+LlmChat. OpenAITextToSpeech, OpenAISpeechToText, and OpenAIImageGeneration are
+different — they accept either an Emergent key or a direct OpenAI key.
+No manual proxy configuration needed for LlmChat. Ever.
 
 
 Module system: package supports BOTH CommonJS and ESM natively.
